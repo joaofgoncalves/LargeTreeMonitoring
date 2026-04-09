@@ -1,0 +1,46 @@
+Package: LargeTreeMonitoring
+Type: Package
+Title: Monitor large trees using Sentinel-2 time series and break point detection
+Version: 0.1.0
+Authors@R: c(
+    person(
+      "João", "Gonçalves",
+      email = "joao.goncalves@cibio.up.pt",
+      role = c("aut", "cre")
+    )
+  )
+Description: An R package to monitor large trees using Sentinel-2 image time 
+    series extracted from Google Earth Engine and multiple algorithms of break 
+    point detection.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Imports:
+    bcp,
+    bfast,
+    bitops,
+    cpm,
+    dplyr,
+    ecp,
+    forecast,
+    ggplot2,
+    imputeTS,
+    jsonlite,
+    leaflet,
+    lubridate,
+    mcp,
+    patchwork,
+    pastecs,
+    phenofit,
+    pracma,
+    readr,
+    rgee,
+    rgeeExtra,
+    sf,
+    shiny,
+    shinyalert,
+    shinyjs,
+    slider,
+    terra,
+    tidyverse
+RoxygenNote: 7.3.3
