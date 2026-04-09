@@ -314,7 +314,7 @@ ltm_plot_spidf_ts <- function(spidf_obj, tree_id = "",
     theme(
       legend.position = "bottom",
       legend.box = "vertical",
-      legend.spacing.y = unit(0.2, "cm"),
+      legend.spacing.y = grid::unit(0.2, "cm"),
       legend.title = element_text(face = "bold")
     )
   
@@ -346,13 +346,13 @@ plot_valid_breaks <- function(df_breaks) {
   stopifnot(all(required_cols %in% colnames(df_breaks)))
   
   df_valid <- df_breaks %>%
-    filter(has_valid_breaks == TRUE, !is.na(break_date), !is.na(break_magn))
+    dplyr::filter(has_valid_breaks == TRUE, !is.na(break_date), !is.na(break_magn))
   
   # ---- Plot 1: Frequency of break dates ----
   freq_data <- df_valid %>%
-    group_by(break_date) %>%
-    summarise(freq = n(), .groups = "drop") %>%
-    arrange(desc(freq))
+    dplyr::group_by(break_date) %>%
+    dplyr::summarise(freq = dplyr::n(), .groups = "drop") %>%
+    dplyr::arrange(dplyr::desc(freq))
   
   p1 <- ggplot(freq_data, aes(x = reorder(as.character(break_date), freq), y = freq)) +
     geom_col(fill = "#69b3a2") +
@@ -388,6 +388,5 @@ plot_valid_breaks <- function(df_breaks) {
       axis.text.x = element_text(angle = 30, hjust = 1)
     )
   
-  # Combine using patchwork
-  p1 | p2
+  patchwork::wrap_plots(p1, p2, ncol = 2)
 }

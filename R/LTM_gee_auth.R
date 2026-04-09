@@ -1,7 +1,7 @@
 
 ltm_start_gee <- function(user_name = NULL, ...){
   
-  out <- try(ee_Initialize(user = user_name, ...), silent = TRUE)
+  out <- try(rgee::ee_Initialize(user = user_name, ...), silent = TRUE)
   
   if(inherits(out, "try-error")){
     options(LTM_GEE_STATUS = "NOT_CONNECTED")

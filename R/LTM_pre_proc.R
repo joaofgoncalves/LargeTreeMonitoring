@@ -12,8 +12,8 @@ ltm_regularize_spidf <- function(spidf_obj, method = "linear", use_cloud_mask = 
   
   # Step 1: Prepare and clean the time series
   df <- spidf_obj %>%
-    mutate(ts = as.Date(ti)) %>%
-    arrange(ts)
+    dplyr::mutate(ts = as.Date(ti)) %>%
+    dplyr::arrange(ts)
 
   # Step 2: Create daily time sequence
   start_date <- get_range_start(spidf_obj)
@@ -23,8 +23,8 @@ ltm_regularize_spidf <- function(spidf_obj, method = "linear", use_cloud_mask = 
   regular_df <- data.frame(ts = regular_dates)
   
   # Step 3: Join original data with daily dates
-  df_regular <- full_join(regular_df, df, by = "ts") %>%
-    arrange(ts)
+  df_regular <- dplyr::full_join(regular_df, df, by = "ts") %>%
+    dplyr::arrange(ts)
   
   # Choose the correct column based on the flag
   spi_ <- if (use_cloud_mask) df_regular$masked_vals else df_regular$spi
@@ -32,21 +32,21 @@ ltm_regularize_spidf <- function(spidf_obj, method = "linear", use_cloud_mask = 
   
   # Step 4: Interpolate using selected method
   interpolated_vals <- switch(method,
-                              "linear" = na_interpolation(spi_, option = "linear", ...),
-                              "spline" = na_interpolation(spi_, option = "spline", ...),
-                              "stine"  = na_interpolation(spi_, option = "stine", ...),
-                              "mean"   = na_mean(spi_, ...),
-                              "kalman" = na_kalman(spi_, model = "StructTS", ...),
-                              "locf"   = na_locf(spi_, ...),
-                              "nocb"   = na_locf(spi_, option = "nocb", ...)
+                              "linear" = imputeTS::na_interpolation(spi_, option = "linear", ...),
+                              "spline" = imputeTS::na_interpolation(spi_, option = "spline", ...),
+                              "stine"  = imputeTS::na_interpolation(spi_, option = "stine", ...),
+                              "mean"   = imputeTS::na_mean(spi_, ...),
+                              "kalman" = imputeTS::na_kalman(spi_, model = "StructTS", ...),
+                              "locf"   = imputeTS::na_locf(spi_, ...),
+                              "nocb"   = imputeTS::na_locf(spi_, option = "nocb", ...)
   )
   
   # Step 5: Construct the new spidf object
   out_df <- df_regular %>%
-    mutate(original_spi = spi) %>% 
-    mutate(spi = interpolated_vals) %>% 
-    mutate(ti = ts) %>%
-    select(ti, spi, original_spi, masked_vals, cloud_mask)
+    dplyr::mutate(original_spi = spi) %>% 
+    dplyr::mutate(spi = interpolated_vals) %>% 
+    dplyr::mutate(ti = ts) %>%
+    dplyr::select(ti, spi, original_spi, masked_vals, cloud_mask)
   
   # Copy and update metadata
   out_df <- ltm_copy_metadata(out_df, spidf_obj)
@@ -74,13 +74,13 @@ ltm_apply_moving_quantile <- function(spidf_obj, quant = 0.95, win_size = 9) {
   after_days  <- ceiling(win_size / 2)
   
   df <- spidf_obj %>%
-    mutate(
-      spi_mov_wind = slide_index_dbl(
+    dplyr::mutate(
+      spi_mov_wind = slider::slide_index_dbl(
         .x = spi,
         .i = ti,
-        .f = ~ quantile(.x, probs = quant, na.rm = TRUE),
-        .before = days(before_days),
-        .after = days(after_days),
+        .f = ~ stats::quantile(.x, probs = quant, na.rm = TRUE),
+        .before = lubridate::days(before_days),
+        .after = lubridate::days(after_days),
         .complete = FALSE
       )
     )
@@ -116,32 +116,32 @@ ltm_apply_whitaker <- function(spidf_obj, lambda = 5000, quantile_thresh = 0.35,
   # -----------------------------
   if (use_weights) {
     
-    threshold <- quantile(df$spi, probs = quantile_thresh, na.rm = TRUE)
+    threshold <- stats::quantile(df$spi, probs = quantile_thresh, na.rm = TRUE)
     
     df <- df %>%
-      mutate(
-        spi_weight = case_when(
+      dplyr::mutate(
+        spi_weight = dplyr::case_when(
           spi >= threshold ~ 1,
           !is.na(spi) ~ min_weight,
           TRUE ~ 0
         )
       )
     
-    df$spi_smooth <- whit2(y = df$spi, w = df$spi_weight, lambda = lambda)
+    df$spi_smooth <- phenofit::whit2(y = df$spi, w = df$spi_weight, lambda = lambda)
     
     # Smooth spi_mov_wind if it exists
     if ("spi_mov_wind" %in% names(df)) {
       
       # DO NOT USE WHEIGTS HERE!!!
-      df$spi_mov_smooth <- whit2(y = df$spi_mov_wind, lambda = lambda)
+      df$spi_mov_smooth <- phenofit::whit2(y = df$spi_mov_wind, lambda = lambda)
       
     }
   } else {
     # No weights: standard smoothing
-    df$spi_smooth <- whit2(y = df$spi, lambda = lambda)
+    df$spi_smooth <- phenofit::whit2(y = df$spi, lambda = lambda)
     
     if ("spi_mov_wind" %in% names(df)) {
-      df$spi_mov_smooth <- whit2(y = df$spi_mov_wind, lambda = lambda)
+      df$spi_mov_smooth <- phenofit::whit2(y = df$spi_mov_wind, lambda = lambda)
     }
   }
   

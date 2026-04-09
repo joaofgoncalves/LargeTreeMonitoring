@@ -905,7 +905,7 @@ ltm_bfast01_detect_breaks <- function(
   n   <- length(yts)
   
   # run bfast01 (detection on raw yts, as before) ----------------------
-  bf01 <- bfast01(
+  bf01 <- bfast::bfast01(
     data       = yts,
     formula    = formula,
     test       = test,

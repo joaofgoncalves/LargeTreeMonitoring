@@ -4,7 +4,7 @@ ltm_spidf_to_zoo <- function(spidf_obj, yname){
   
   stopifnot(inherits(spidf_obj, "spidf"))
   
-  ts_obj <- zoo(spidf_obj[,yname], order.by = spidf_obj$ti)
+  ts_obj <- zoo::zoo(spidf_obj[,yname], order.by = spidf_obj$ti)
   
   return(ts_obj)
   
@@ -16,9 +16,14 @@ ltm_spidf_to_ts <- function(spidf_obj, yname, freq = 365){
   
   spidf_obj <- ltm_remove_leap_days(spidf_obj)
   
-  ts_obj <- ts(spidf_obj[,yname],
-                 start = c(year(min(spidf_obj$ti)), yday(min(spidf_obj$ti))),
-                 frequency = freq)
+  ts_obj <- stats::ts(
+    spidf_obj[,yname],
+    start = c(
+      lubridate::year(min(spidf_obj$ti)),
+      lubridate::yday(min(spidf_obj$ti))
+    ),
+    frequency = freq
+  )
   
   return(ts_obj)
   
@@ -74,11 +79,11 @@ ltm_remove_duplicates <- function(spidf_obj) {
   stopifnot(all(c("ti", "spi") %in% names(spidf_obj)))
   
   out_df <- spidf_obj %>%
-    mutate(ti = as.Date(ti)) %>%
-    group_by(ti) %>%
-    slice_max(order_by = spi, with_ties = FALSE) %>%
-    ungroup() %>%
-    arrange(ti) %>% 
+    dplyr::mutate(ti = as.Date(ti)) %>%
+    dplyr::group_by(ti) %>%
+    dplyr::slice_max(order_by = spi, with_ties = FALSE) %>%
+    dplyr::ungroup() %>%
+    dplyr::arrange(ti) %>% 
     as.data.frame()
   
   out_df <- ltm_copy_metadata(out_df,spidf_obj)
@@ -147,16 +152,18 @@ ltm_convert_breakdate_to_date <- function(breakDate) {
 
 ltm_copy_ts <- function(ts_to_copy, values){
   
-  stopifnot(is.ts(ts_to_copy))
+  stopifnot(stats::is.ts(ts_to_copy))
   
   if (length(values) != length(ts_to_copy)){
     stop("Length of values vector must match length of ts_to_copy")
   }
   
-  new_ts <- ts(values,
-               start = start(ts_to_copy),
-               end = end(ts_to_copy),
-               frequency = frequency(ts_to_copy))
+  new_ts <- stats::ts(
+    values,
+    start = stats::start(ts_to_copy),
+    end = stats::end(ts_to_copy),
+    frequency = stats::frequency(ts_to_copy)
+  )
   
   return(new_ts)
 }
@@ -202,18 +209,22 @@ ltm_summarize_break_df <- function(break_df) {
   return(summary_text)
 }
 
-Percentile90 <- function(x) quantile(x,probs=0.9,na.rm=TRUE)
+Percentile90 <- function(x) stats::quantile(x, probs = 0.9, na.rm = TRUE)
 
 
-ltm_loc_file <- file.path("ltm_cache", "current_location.txt")
+ltm_loc_file <- function() {
+  file.path(ltm_cache_dir(), "current_location.txt")
+}
 
 ltm_read_location <- function() {
+  loc_file <- ltm_loc_file()
+
   # Check if the file exists
-  if (!file.exists(ltm_loc_file)) {
+  if (!file.exists(loc_file)) {
     return(NULL)
   }
   # read the single line
-  loc_str <- readLines(ltm_loc_file, warn = FALSE)
+  loc_str <- readLines(loc_file, warn = FALSE)
   if (length(loc_str) > 0) {
     return(loc_str[1])
   } else {
@@ -222,12 +233,11 @@ ltm_read_location <- function() {
 }
 
 ltm_store_location <- function(lat, lon) {
-  # Ensure the directory exists
-  if (!dir.exists("ltm_cache")) dir.create("ltm_cache", recursive = TRUE)
+  loc_file <- ltm_loc_file()
   
   # Round or format to avoid floating point artifacts
   loc_str <- paste(round(lat, 6), round(lon, 6), sep = ",")
   
-  writeLines(loc_str, con = ltm_loc_file)
+  writeLines(loc_str, con = loc_file)
 }
 
