@@ -49,55 +49,220 @@ ltm_write_params <- function(params, path = ltm_params_path()) {
   invisible(path)
 }
 
-ltm_cache_dir <- function() {
-  path <- tools::R_user_dir("LargeTreeMonitoring", which = "cache")
+ltm_is_writable_dir <- function(path) {
   dir.create(path, recursive = TRUE, showWarnings = FALSE)
-  path
+  dir.exists(path) && file.access(path, mode = 2) == 0
+}
+
+ltm_cache_dir <- function() {
+  option_path <- getOption("LargeTreeMonitoring.cache_dir")
+  env_path <- Sys.getenv("LTM_CACHE_DIR", unset = "")
+
+  candidates <- Filter(
+    ltm_has_path_value,
+    c(
+      option_path,
+      env_path,
+      tools::R_user_dir("LargeTreeMonitoring", which = "cache"),
+      ltm_legacy_cache_dir()
+    )
+  )
+
+  for (candidate in candidates) {
+    if (ltm_is_writable_dir(candidate)) {
+      return(normalizePath(candidate, winslash = "/", mustWork = FALSE))
+    }
+  }
+
+  stop("Could not create a writable cache directory for LargeTreeMonitoring.")
+}
+
+ltm_app_resource_prefix <- "ltm-www"
+
+ltm_register_app_resources <- function() {
+  resource_dir <- system.file("www", package = "LargeTreeMonitoring")
+
+  if (!nzchar(resource_dir)) {
+    stop("Could not locate installed Shiny assets for LargeTreeMonitoring.")
+  }
+
+  resource_paths <- shiny::resourcePaths()
+  current_path <- unname(resource_paths[ltm_app_resource_prefix])
+  if (length(current_path) == 0L || !identical(current_path, resource_dir)) {
+    shiny::addResourcePath(ltm_app_resource_prefix, resource_dir)
+  }
+
+  invisible(resource_dir)
+}
+
+ltm_app_asset <- function(file_name) {
+  paste0(ltm_app_resource_prefix, "/", file_name)
+}
+
+ltm_has_path_value <- function(path) {
+  !is.null(path) && length(path) == 1L && !is.na(path) && nzchar(path)
+}
+
+ltm_is_absolute_path <- function(path) {
+  grepl("^(?:[A-Za-z]:|/|\\\\\\\\)", path)
+}
+
+ltm_empty_tree_state <- function(message = NULL) {
+  list(
+    data = NULL,
+    path = NULL,
+    tree_ids_col = NULL,
+    lat_col = NULL,
+    lon_col = NULL,
+    choices = c("---"),
+    message = message
+  )
+}
+
+ltm_load_tree_list_state <- function(params, config_path = NULL) {
+  tree_cfg <- params$tree_list_file
+
+  if (is.null(tree_cfg)) {
+    return(
+      ltm_empty_tree_state(
+        "Tree list configuration is missing. Starting without predefined locations."
+      )
+    )
+  }
+
+  tree_list_path <- tree_cfg$tree_locs_file
+  if (!ltm_has_path_value(tree_list_path)) {
+    return(ltm_empty_tree_state())
+  }
+
+  if (identical(tree_list_path, "_SAMPLE_TREE_LIST_.csv")) {
+    tree_list_path <- ltm_default_csv_path()
+  } else if (!ltm_is_absolute_path(tree_list_path) && !is.null(config_path)) {
+    tree_list_path <- file.path(dirname(config_path), tree_list_path)
+  }
+
+  tree_ids_col <- tree_cfg$tree_ids_col
+  tree_lat_col <- tree_cfg$lat_col
+  tree_lon_col <- tree_cfg$lon_col
+  required_cols <- c(tree_ids_col, tree_lat_col, tree_lon_col)
+
+  if (any(!vapply(required_cols, ltm_has_path_value, logical(1)))) {
+    return(
+      ltm_empty_tree_state(
+        "Tree list columns are not configured correctly. Starting without predefined locations."
+      )
+    )
+  }
+
+  if (!file.exists(tree_list_path)) {
+    return(
+      ltm_empty_tree_state(
+        paste0(
+          "Tree list file not found: ",
+          normalizePath(tree_list_path, mustWork = FALSE),
+          ". Starting without predefined locations."
+        )
+      )
+    )
+  }
+
+  tree_list <- tryCatch(
+    readr::read_csv(tree_list_path, show_col_types = FALSE),
+    error = function(error) {
+      error
+    }
+  )
+
+  if (inherits(tree_list, "error")) {
+    return(
+      ltm_empty_tree_state(
+        paste0(
+          "Could not read tree list file: ",
+          tree_list$message,
+          ". Starting without predefined locations."
+        )
+      )
+    )
+  }
+
+  missing_cols <- setdiff(required_cols, names(tree_list))
+  if (length(missing_cols) > 0L) {
+    return(
+      ltm_empty_tree_state(
+        paste0(
+          "Tree list file is missing configured columns: ",
+          paste(missing_cols, collapse = ", "),
+          ". Starting without predefined locations."
+        )
+      )
+    )
+  }
+
+  tree_ids <- sort(unique(as.character(tree_list[[tree_ids_col]])))
+  tree_ids <- tree_ids[!is.na(tree_ids) & nzchar(tree_ids)]
+
+  list(
+    data = tree_list,
+    path = tree_list_path,
+    tree_ids_col = tree_ids_col,
+    lat_col = tree_lat_col,
+    lon_col = tree_lon_col,
+    choices = c("---", tree_ids),
+    message = NULL
+  )
+}
+
+ltm_update_tree_choices <- function(session, tree_state, selected = "---") {
+  shiny::updateSelectInput(
+    session = session,
+    inputId = "location_id",
+    choices = tree_state$choices,
+    selected = selected
+  )
+}
+
+ltm_app_startup <- function(config_path = NULL) {
+  if (is.null(config_path)) {
+    config_path <- ltm_init_params()
+  } else {
+    config_path <- normalizePath(config_path, mustWork = FALSE)
+    if (!file.exists(config_path)) {
+      stop("Config file does not exist: ", config_path)
+    }
+  }
+
+  ltm_cache_dir()
+
+  params <- ltm_read_params(config_path)
+  tree_state <- ltm_load_tree_list_state(params, config_path = config_path)
+
+  list(
+    config_path = config_path,
+    params = params,
+    tree_state = tree_state
+  )
 }
 
 
-#' Run the LargeTreeMonitoring Shiny app
+#' Create the LargeTreeMonitoring Shiny app
 #'
-#' Runs the shiny app GUI to get data for a specific point. This point can be
-#' provided by a dropdown list from a CSV file set by the JSON parameters file.
+#' Creates the packaged Shiny application for analysing satellite-image time
+#' series and breakpoints.
 #'
-#' @param ... Arguments passed to shiny::runApp()
+#' @param config_path Optional path to a JSON parameter file. When omitted, the
+#'   package uses the user-specific configuration file in the standard R user
+#'   config directory, creating it from the default template when needed.
+#'
+#' @return A `shiny.appobj` that can be launched with [shiny::runApp()].
 #' @export
 #'
-run_ltm_app <- function(...) {
+ltm_app <- function(config_path = NULL) {
 
-  # Read parameters from json config file
-  #config_path <- config_path %||% ltm_init_params()
-  config_path <- ltm_init_params()   # creates/copies user config if needed
-  params <- shiny::reactiveVal(ltm_read_params(config_path))
+  startup <- ltm_app_startup(config_path)
+  config_path <- startup$config_path
+  tree_ids <- startup$tree_state$choices
 
-  #params0 <- ltm_read_params(config_path)
-
-  # Cache directory
-  cache_dir <- tools::R_user_dir("LargeTreeMonitoring", which = "cache")
-
-  # Ensure cache directory exists otherwise make it
-  if(!dir.exists(cache_dir)) ltm_cache_dir()
-
-  # Check if a tree list path exists
-  tree_list_path <- params()$tree_list_file$tree_locs_file
-
-  if(tree_list_path == "_SAMPLE_TREE_LIST_.csv")
-    tree_list_path <- ltm_default_csv_path()
-
-  if(tree_list_path!="" && !is.na(tree_list_path) &&
-     (length(tree_list_path)!=0) && !is.null(tree_list_path)){
-
-    tree_ids_col <- params()$tree_list_file$tree_ids_col
-    tree_lat <- params()$tree_list_file$lat_col
-    tree_lon <- params()$tree_list_file$lon_col
-
-    tree_list <- readr::read_csv(tree_list_path)
-    tree_ids  <- c("---", sort(unique(tree_list[,tree_ids_col] %>% pull)))
-
-  }else{
-    tree_ids  <- c("---")
-  }
+  ltm_register_app_resources()
 
 
   ui <- shiny::fluidPage(
@@ -200,7 +365,7 @@ run_ltm_app <- function(...) {
     shiny::div(
       class = "ltm-banner",
       shiny::div(style = "display: flex; align-items: center;",
-          tags$img(src = "LTM_logo-v1.png", height = "60px", style = "margin-right: 5px;"),
+          tags$img(src = ltm_app_asset("LTM_logo-v1.png"), height = "60px", style = "margin-right: 5px;"),
           h2("Large Tree Monitoring")
       )
     ),
@@ -218,12 +383,13 @@ run_ltm_app <- function(...) {
           # Location or Tree ID from pre-existing list
           shiny::selectInput("location_id", "Select Location ID",
                       choices = tree_ids, selectize = TRUE, selected = "---"),
+          uiOutput("tree_list_warning"),
 
           shiny::numericInput("latitude", "Latitude", value = 41.720898),
           shiny::numericInput("longitude", "Longitude", value = -8.747039),
 
           shiny::actionButton("choose_coords", "",
-                       icon = icon("map-location-dot"),
+                       icon = shiny::icon("map-location-dot"),
                        style = "margin-bottom: 8px;"),
 
           shiny::dateInput("start_date", "Start Date", value = "2015-01-01"),
@@ -244,28 +410,28 @@ run_ltm_app <- function(...) {
           # Moving window analysis
           shiny::hr(),
 
-          selectInput("quant", "Moving Window Quantile",
+          shiny::selectInput("quant", "Moving Window Quantile",
                       choices = c(0.95, 0.9, 0.75)),
-          numericInput("win_size", "Window Size (days)",
+          shiny::numericInput("win_size", "Window Size (days)",
                        value = 15, min = 5, max = 180),
 
-          actionButton("apply_mov_quantile", "Apply Moving Window"),
+          shiny::actionButton("apply_mov_quantile", "Apply Moving Window"),
 
           # Whittaker time series smoothing
-          hr(),
-          numericInput("lambda", "Whittaker Lambda",
+          shiny::hr(),
+          shiny::numericInput("lambda", "Whittaker Lambda",
                        value = 20000, min = 1),
-          numericInput("quantile_thresh", "Whittaker Quantile Threshold",
+          shiny::numericInput("quantile_thresh", "Whittaker Quantile Threshold",
                        value = 0.35, min = 0.01, max = 1),
-          checkboxInput("use_weights", "Use Weights in Whittaker Smoothing", value = TRUE),
+          shiny::checkboxInput("use_weights", "Use Weights in Whittaker Smoothing", value = TRUE),
 
-          actionButton("apply_whittaker", "Apply Whittaker Smoother"),
+          shiny::actionButton("apply_whittaker", "Apply Whittaker Smoother"),
 
 
           # Break Detection component
           # -- NEW: Break Detection UI inputs --
-          hr(),
-          checkboxGroupInput(
+          shiny::hr(),
+          shiny::checkboxGroupInput(
             "ts_names", "Select Time Series Type(s)",
             choices = c(
 
@@ -276,10 +442,10 @@ run_ltm_app <- function(...) {
             selected = c("spi")  # Default selection
           ),
 
-          numericInput("s_window", "Window size (STL decomposition)",
+          shiny::numericInput("s_window", "Window size (STL decomposition)",
                        value = 30, min = 5, max = 365),
 
-          checkboxGroupInput(
+          shiny::checkboxGroupInput(
             inputId = "break_methods",
             label   = "Break-Detection Methods",
             # choices = c(
@@ -292,36 +458,36 @@ run_ltm_app <- function(...) {
             # ),
 
             choiceNames = list(
-              HTML("Change Point Model (cpm) <span title='Detects sequential changes using the cpm package'> ℹ️</span>"),
-              HTML("Energy Divisive (ed) <span title='ecp package e.divisive method: clustering-based method'> ℹ️</span>"),
-              HTML("BFAST <span title='Breaks in season-trend using bfast'> ℹ️</span>"),
-              HTML("Bayesian Change Points (mcp) <span title='Bayesian model-based detection using mcp'> ℹ️</span>"),
-              HTML("Structural Changes (stc) <span title='strucchange package for structural breaks'> ℹ️</span>"),
-              HTML("Wild Binary Segmentation (wbs) <span title='Fast segmentation of time series'> ℹ️</span>")
+              HTML("Change Point Model (cpm) <span title='Detects sequential changes using the cpm package'>[i]</span>"),
+              HTML("Energy Divisive (ed) <span title='ecp package e.divisive method: clustering-based method'>[i]</span>"),
+              HTML("BFAST <span title='Breaks in season-trend using bfast'>[i]</span>"),
+              HTML("Bayesian Change Points (mcp) <span title='Bayesian model-based detection using mcp'>[i]</span>"),
+              HTML("Structural Changes (stc) <span title='strucchange package for structural breaks'>[i]</span>"),
+              HTML("Wild Binary Segmentation (wbs) <span title='Fast segmentation of time series'>[i]</span>")
             ),
             choiceValues = c("cpm", "ed", "bfast", "mcp", "stc", "wbs"),
 
             selected = NULL
           ),
 
-          dateInput("break_thresh_date", "Break Threshold Date",
+          shiny::dateInput("break_thresh_date", "Break Threshold Date",
                     value = "2016-01-01"),
-          numericInput("thresh_change", "% Change threshold",
+          shiny::numericInput("thresh_change", "% Change threshold",
                        value = -10, max = 0),
 
-          radioButtons(
+          shiny::radioButtons(
             inputId = "thresh_fun",
             label   = "Threshold change function",
             choices = c("Median","90% percentile"),
             selected = "Median"),
 
-          actionButton("analyze_breaks", "Analyze Breaks"),
+          shiny::actionButton("analyze_breaks", "Analyze Breaks"),
 
           ## Parameter editing
-          hr(),
-          p("⚙️ Configure parameters"),
-          actionButton("edit_params", "Edit parameters"),
-          verbatimTextOutput("param_save_status")
+          shiny::hr(),
+          shiny::p("Configure parameters"),
+          shiny::actionButton("edit_params", "Edit parameters"),
+          shiny::verbatimTextOutput("param_save_status")
 
 
         )
@@ -330,15 +496,15 @@ run_ltm_app <- function(...) {
 
     ## Right-side with analysis results
 
-    div(
+    shiny::div(
       class = "main-panel",
 
-      uiOutput("loading"),
+      shiny::uiOutput("loading"),
 
-      verbatimTextOutput("status"),
+      shiny::verbatimTextOutput("status"),
 
       # Time series plot + small thumbnail map side by side
-      fluidRow(
+      shiny::fluidRow(
         column(
           width = 9,
           plotOutput("plot_spidf", height = "500px")
@@ -349,32 +515,32 @@ run_ltm_app <- function(...) {
         )
       ),
 
-      uiOutput("download_data_ui"),  # <- dynamic button only when data is ready
+      shiny::uiOutput("download_data_ui"),  # <- dynamic button only when data is ready
 
 
-      hr(),
+      shiny::hr(),
 
-      verbatimTextOutput("break_analysis_status"),
+      shiny::verbatimTextOutput("break_analysis_status"),
 
-      div(
+      shiny::div(
         style = "margin: 20px;",
         tableOutput("break_results_table"),
 
         # Add this download button next to the table
         #downloadButton("download_breaks_csv", "Download table to csv file")
-        uiOutput("download_breaks_ui")  # <- dynamic button only when data is ready
+        shiny::uiOutput("download_breaks_ui")  # <- dynamic button only when data is ready
 
       ),
 
       # Two new plots side by side (patchwork) - only if valid breaks exist
-      fluidRow(
+      shiny::fluidRow(
         column(
           width = 12,
           plotOutput("valid_breaks_plots", height = "400px")
         )
       ),
 
-      uiOutput("break_summary_ui")
+      shiny::uiOutput("break_summary_ui")
     )
   )
 
@@ -382,13 +548,33 @@ run_ltm_app <- function(...) {
 
   server <- function(input, output, session) {
 
+    params <- shiny::reactiveVal(startup$params)
+    tree_state <- shiny::reactiveVal(startup$tree_state)
     spidf_data <- reactiveVal(NULL)
 
     # A new reactiveVal to store the actual lat/lon used in the last fetch
     selectedCoord <- reactiveVal(NULL)
 
-    # Add the params object retrieved from the json file
-    #params <- shiny::reactiveVal(params0)
+    output$tree_list_warning <- renderUI({
+      tree_message <- tree_state()$message
+
+      if (is.null(tree_message) || !nzchar(tree_message)) {
+        return(NULL)
+      }
+
+      div(
+        style = paste(
+          "background-color: #fff3cd;",
+          "border: 1px solid #f0d98a;",
+          "border-radius: 4px;",
+          "color: #5f4a00;",
+          "font-size: 12px;",
+          "margin-bottom: 10px;",
+          "padding: 8px;"
+        ),
+        tree_message
+      )
+    })
 
     ## ------------------------------------------------------------------------ ##
     #  ---- Coordinate picker with reactive val to update main coordinates ----
@@ -478,14 +664,14 @@ run_ltm_app <- function(...) {
 
       output$loading <- renderUI({
         tagList(
-          tags$img(src = "loading.gif", height = "90px"),
-          tags$span("🔄 Checking local cache or fetching GEE data server... Please wait")
+          tags$img(src = ltm_app_asset("loading.gif"), height = "90px"),
+          tags$span("Checking local cache or fetching GEE data. Please wait.")
         )
       })
 
       shinyjs::delay(1000, {
         if (ltm_check_gee_status() != "CONNECTED") {
-          output$status <- renderText("🔄 Initializing GEE connection...")
+          output$status <- renderText("Initializing GEE connection...")
           #ltm_start_gee(input$user_name)
           ltm_start_gee(params()$gee$gee_username)
 
@@ -494,7 +680,7 @@ run_ltm_app <- function(...) {
         date_error <- FALSE
         # Validate dates for Sentinel L1C / L2A
         if ((input$proc_level %in% c("L1","L1C")) && (input$start_date < as.Date("2015-01-01"))) {
-          shinyalert(
+          shinyalert::shinyalert(
             title = "Error in start date",
             text = "The start date cannot be earlier than 2015-01-01 for L1/L1C Sentinel-2 data",
             type = "error"
@@ -503,7 +689,7 @@ run_ltm_app <- function(...) {
           date_error <- TRUE
         }
         if ((input$proc_level %in% c("L2","L2A")) && (input$start_date < as.Date("2017-01-01"))) {
-          shinyalert(
+          shinyalert::shinyalert(
             title = "Error in start date",
             text = "The start date cannot be earlier than 2017-01-01 for L2/L2A Sentinel-2 data",
             type = "error"
@@ -516,20 +702,33 @@ run_ltm_app <- function(...) {
 
           # Use either chosen location or manual lat/lon
           if (input$location_id != "---") {
+            tree_info <- tree_state()
+            tree_list <- tree_info$data
 
-            #loc_row <- tree_list[tree_list$cid == input$location_id, ]
-            loc_row <- tree_list[tree_list %>% pull(tree_ids_col) == input$location_id, ]
+            if (is.null(tree_list)) {
+              shinyalert::shinyalert(
+                title = "Location list unavailable",
+                text = "The configured tree list could not be loaded.",
+                type = "error"
+              )
+              output$loading <- renderUI({ NULL })
+              return(NULL)
+            }
+
+            loc_row <- tree_list[
+              as.character(tree_list[[tree_info$tree_ids_col]]) == input$location_id,
+              ,
+              drop = FALSE
+            ]
 
             if (nrow(loc_row) == 1) {
-              # lat <- loc_row$lat
-              # lon <- loc_row$lon
-              lat <- loc_row %>% pull(tree_lat)
-              lon <- loc_row %>% pull(tree_lon)
+              lat <- loc_row[[tree_info$lat_col]][1]
+              lon <- loc_row[[tree_info$lon_col]][1]
 
             } else {
               #showNotification("Selected location ID not found in list.", type = "error")
 
-              shinyalert(
+              shinyalert::shinyalert(
                 title = "Error in start date",
                 text = "Selected location ID not found in list",
                 type = "error"
@@ -572,40 +771,77 @@ run_ltm_app <- function(...) {
             input$spi, input$proc_level
           )
 
+          cached_data <- NULL
           if (!is.null(cached_file)) {
-            output$status <- renderText(paste("✅ Data loaded from cache:", cached_file))
-            spidf_data(readRDS(cached_file))
-            output$loading <- renderUI({NULL})
+            cached_data <- tryCatch(
+              readRDS(cached_file),
+              error = function(error) {
+                warning(
+                  "Could not read cached file '",
+                  cached_file,
+                  "': ",
+                  error$message
+                )
+                NULL
+              }
+            )
 
-          } else {
-
-            shinyjs::delay(1000, {
-              df <- ltm_s2_get_data_point(
-                lat        = lat,
-                lon        = lon,
-                start_date = format(input$start_date, "%Y-%m-%d"),
-                end_date   = format(input$end_date,   "%Y-%m-%d"),
-                spi        = input$spi,
-                proc_level = input$proc_level,
-                tree_id = ifelse(input$location_id != "" && input$location_id != "---",
-                                 input$location_id, NULL)
-              )
-
-              file_name <- ltm_cache_file_name(
-                lat, lon,
-                input$start_date, input$end_date,
-                input$spi, input$proc_level
-              )
-
-              saveRDS(df, file_name)
-
-              output$status <- renderText(paste("✅ Data fetched and cached at:", file_name,"💾 "))
-
-              spidf_data(df)
-
+            if (!is.null(cached_data)) {
+              output$status <- renderText(paste("[OK] Data loaded from cache:", cached_file))
+              spidf_data(cached_data)
               output$loading <- renderUI({NULL})
-            })
+              return(NULL)
+            }
           }
+
+          shinyjs::delay(1000, {
+            df <- ltm_s2_get_data_point(
+              lat        = lat,
+              lon        = lon,
+              start_date = format(input$start_date, "%Y-%m-%d"),
+              end_date   = format(input$end_date,   "%Y-%m-%d"),
+              spi        = input$spi,
+              proc_level = input$proc_level,
+              tree_id = ifelse(input$location_id != "" && input$location_id != "---",
+                               input$location_id, NULL)
+            )
+
+            file_name <- tryCatch(
+              ltm_save_to_cache(
+                df,
+                metadata_tags = list(
+                  lat = lat,
+                  lon = lon,
+                  start_date = input$start_date,
+                  end_date = input$end_date,
+                  spi = input$spi,
+                  proc_level = input$proc_level,
+                  tree_id = ifelse(
+                    input$location_id != "" && input$location_id != "---",
+                    input$location_id,
+                    NULL
+                  ),
+                  buffer_radius_m = NULL
+                )
+              ),
+              error = function(error) {
+                warning("Could not write cache file: ", error$message)
+                NULL
+              }
+            )
+
+            if (is.null(file_name)) {
+              output$status <- renderText(
+                "[OK] Data fetched from GEE, but the cache file could not be written."
+              )
+            } else {
+              output$status <- renderText(paste("[OK] Data fetched and cached at:", file_name))
+            }
+
+            spidf_data(df)
+
+            output$loading <- renderUI({NULL})
+          })
         }
       })
     })
@@ -620,7 +856,7 @@ run_ltm_app <- function(...) {
           use_cloud_mask = input$use_cloud_mask
         )
       )
-      output$status <- renderText("✅ Time series regularized.")
+      output$status <- renderText("[OK] Time series regularized.")
     })
 
     # ---- Moving window quantile ----
@@ -629,7 +865,7 @@ run_ltm_app <- function(...) {
       req(spidf_data())
 
       if (!isTRUE(is_regularized(spidf_data()))) {
-        shinyalert(
+        shinyalert::shinyalert(
           title = "Action Required",
           text  = "Please regularize/interpolate the time series before
         applying the moving window analysis.",
@@ -647,7 +883,7 @@ run_ltm_app <- function(...) {
         )
       )
 
-      output$status <- renderText("✅ Moving window quantile applied.")
+      output$status <- renderText("[OK] Moving window quantile applied.")
     })
 
     # ---- Whittaker smoother ----
@@ -661,7 +897,7 @@ run_ltm_app <- function(...) {
           use_weights     = input$use_weights
         )
       )
-      output$status <- renderText("✅ Whittaker smoother applied.")
+      output$status <- renderText("[OK] Whittaker smoother applied.")
     })
 
     # ---- Main plot ----
@@ -704,7 +940,7 @@ run_ltm_app <- function(...) {
         #df <- br$df_breaks
 
         # Write the CSV
-        write.csv(df, file, row.names = FALSE)
+        utils::write.csv(df, file, row.names = FALSE)
       },
       contentType = "text/csv"
     )
@@ -739,7 +975,7 @@ run_ltm_app <- function(...) {
         easyClose = TRUE,
         footer = tagList(
           modalButton("Cancel"),
-          actionButton("save_params", "💾 Save Changes")
+          actionButton("save_params", "Save Changes")
         ),
         textAreaInput(
           inputId = "json_editor",
@@ -754,7 +990,7 @@ run_ltm_app <- function(...) {
         updateTextAreaInput(
           session,
           inputId = "json_editor",
-          value = as.character(toJSON(params, pretty = TRUE, auto_unbox = TRUE))
+          value = as.character(jsonlite::toJSON(params(), pretty = TRUE, auto_unbox = TRUE))
         )
       })
     })
@@ -772,10 +1008,10 @@ run_ltm_app <- function(...) {
     #     params <<- new_params
     #
     #     removeModal()
-    #     output$param_save_status <- renderText("✅ Parameters saved")
+    #     output$param_save_status <- renderText("[OK] Parameters saved")
     #   }, error = function(e) {
     #     output$param_save_status <- renderText(
-    #       paste("❌ Error parsing JSON:", e$message)
+    #       paste("[ERROR] Error parsing JSON:", e$message)
     #     )
     #   })
     # })
@@ -794,16 +1030,25 @@ run_ltm_app <- function(...) {
 
         # Update reactive app state
         params(new_params)
+        tree_info <- ltm_load_tree_list_state(new_params, config_path = config_path)
+        tree_state(tree_info)
+        ltm_update_tree_choices(session, tree_info, selected = "---")
 
         removeModal()
 
-        output$param_save_status <- renderText(
-          paste0("✅ Parameters saved: ", normalizePath(config_path, mustWork = FALSE))
+        save_message <- paste0(
+          "[OK] Parameters saved: ",
+          normalizePath(config_path, mustWork = FALSE)
         )
+        if (!is.null(tree_info$message) && nzchar(tree_info$message)) {
+          save_message <- paste(save_message, tree_info$message, sep = "\n")
+        }
+
+        output$param_save_status <- renderText(save_message)
 
       }, error = function(e) {
         output$param_save_status <- renderText(
-          paste("❌ Error parsing or saving JSON:", e$message)
+          paste("[ERROR] Error parsing or saving JSON:", e$message)
         )
       })
     })
@@ -826,7 +1071,7 @@ run_ltm_app <- function(...) {
         #showNotification("No break methods or time-series types selected.", type = "error")
         #message("[DEBUG] => no break methods or no timeseries, returning NULL.")
 
-        shinyalert(
+        shinyalert::shinyalert(
           title = "Action Required",
           text  = "No break methods or time-series types selected.",
           type  = "error"
@@ -839,7 +1084,7 @@ run_ltm_app <- function(...) {
 
         #showNotification("Time series smoothing has to be performed first", type = "error")
 
-        shinyalert(
+        shinyalert::shinyalert(
           title = "Action Required",
           text  = "Time series smoothing (and maybe moving window analysis) have to be performed first",
           type  = "error"
@@ -851,7 +1096,7 @@ run_ltm_app <- function(...) {
 
       output$loading <- renderUI({
         tagList(
-          tags$img(src = "loading.gif", height = "90px"),
+          tags$img(src = ltm_app_asset("loading.gif"), height = "90px"),
           tags$span(paste0("Performing break analysis. ",
                            "This may take a few seconds to some minutes... Please wait \n",
                            ifelse("mcp" %in% input$break_methods,
@@ -866,7 +1111,7 @@ run_ltm_app <- function(...) {
       if (length(input$break_methods) == 0 || length(input$ts_names) == 0) {
         #showNotification("No break methods or time-series types selected.", type = "warning")
 
-        shinyalert(
+        shinyalert::shinyalert(
           title = "Action Required",
           text  = "No break methods or time-series types were selected",
           type  = "error"
@@ -887,7 +1132,7 @@ run_ltm_app <- function(...) {
         tresh_int     <- NULL
 
         if(input$thresh_fun == "Median"){
-          thresh_fun <- median
+          thresh_fun <- stats::median
         } else if(input$thresh_fun == "90% percentile"){
           thresh_fun <- Percentile90
         }
@@ -934,7 +1179,7 @@ run_ltm_app <- function(...) {
               run_obj <- ltm_bfast01_detect_breaks(
                 spidf         = spidf_data(),
                 ts_name       = tsn,
-                formula       = as.formula(params()$bfast$formula),
+                formula       = stats::as.formula(params()$bfast$formula),
                 s_window      = s_window,
                 test          = params()$bfast$test,
                 level         = params()$bfast$level,
@@ -1017,7 +1262,7 @@ run_ltm_app <- function(...) {
         output$loading <- renderUI({ NULL })
 
         # Make an output appear once finishing the analysis
-        output$break_analysis_status <- renderText("✅ Break analysis complete.")
+        output$break_analysis_status <- renderText("[OK] Break analysis complete.")
       })
 
     })
@@ -1038,7 +1283,7 @@ run_ltm_app <- function(...) {
       }
 
       # Remove columns
-      df <- df %>% dplyr::select(-method, -break_index)
+      df <- df[, setdiff(names(df), c("method", "break_index")), drop = FALSE]
 
       # Replace values for easier reading
       # Replace time series data names
@@ -1047,7 +1292,7 @@ run_ltm_app <- function(...) {
           "spi_mov_wind" = "Moving window series",
           "spi_smooth" = "Smoothed series",
           "spi_mov_smooth" = "Moving window smoothed" )
-      df$data_type <- recode(df$data_type, !!!replacements)
+      df$data_type <- dplyr::recode(df$data_type, !!!replacements)
 
       # Replace model names
       da_replacements <-
@@ -1059,7 +1304,7 @@ run_ltm_app <- function(...) {
           "stc"   = "Structural Changes (stc)",
           "wbs"   = "Wild Binary Segmentation (wbs)"
         )
-      df$algorithm <- recode(df$algorithm, !!!da_replacements)
+      df$algorithm <- dplyr::recode(df$algorithm, !!!da_replacements)
 
       # Replace boolean values
       df$has_breaks <- ifelse(df$has_breaks, "Yes", "No")
@@ -1099,7 +1344,7 @@ run_ltm_app <- function(...) {
         df <- br$df_breaks
 
         # Write the CSV
-        write.csv(df, file, row.names = FALSE)
+        utils::write.csv(df, file, row.names = FALSE)
       },
       contentType = "text/csv"
     )
@@ -1138,9 +1383,24 @@ run_ltm_app <- function(...) {
   }
 
   app <- shiny::shinyApp(ui = ui, server = server)
-  shiny::runApp(app, ...)
+  app
 }
 
+
+#' Run the LargeTreeMonitoring Shiny app
+#'
+#' Launches the packaged Shiny application for analysing satellite-image time
+#' series and breakpoints.
+#'
+#' @param config_path Optional path to a JSON parameter file. When omitted, the
+#'   package uses the user-specific configuration file in the standard R user
+#'   config directory, creating it from the default template when needed.
+#' @param ... Arguments passed to [shiny::runApp()].
+#' @export
+#'
+run_ltm_app <- function(config_path = NULL, ...) {
+  shiny::runApp(ltm_app(config_path = config_path), ...)
+}
 
 
 
