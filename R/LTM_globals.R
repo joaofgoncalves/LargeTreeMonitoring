@@ -1,0 +1,19 @@
+utils::globalVariables(
+  c(
+    "algorithm",
+    "break_date",
+    "break_magn",
+    "cloud_mask",
+    "data_type",
+    "freq",
+    "has_breaks",
+    "has_valid_breaks",
+    "masked_vals",
+    "method",
+    "original_spi",
+    "spi",
+    "ti",
+    "type",
+    "value"
+  )
+)
