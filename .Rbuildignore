@@ -1,2 +1,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^\.pkgbuild$
+^\.tmplib$
+^\.{1,2}Rcheck$
+^LargeTreeMonitoring\.Rcheck$
+^ltm_cache$

@@ -2,3 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
+.pkgbuild/
+.tmplib/
+*.Rcheck/
+..Rcheck/
+ltm_cache/
