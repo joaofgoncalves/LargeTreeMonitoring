@@ -1,17 +1,17 @@
 
 
 ltm_s2_scale_reflectance <- function(img) {
-  
+
   refl_bands <- c("Blue", "Green", "Red", "RE1", "RE2", "RE3",
                   "NIR", "RE4", "SWIR1", "SWIR2")
-  
+
   scaled_refl <- img$select(refl_bands)$multiply(0.0001)$toFloat()
-  
+
   out <- scaled_refl$addBands(img$select("QA60"))
-  
+
   out <- out$copyProperties(img, img$propertyNames())$
     set("system:time_start", img$get("system:time_start"))
-  
+
   return(ee$Image(out))
 }
 
@@ -51,100 +51,100 @@ ltm_get_s2_imgcol <- function(proc_level = "L2A") {
 
 
 ltm_s2_mask_clouds <- function(img){
-  
+
   # Select quality layer
   qa <- img$select("QA60")
-  
+
   # Bits 10 and 11 are clouds and cirrus, respectively.
   cloudBitMask <- ee$Number(1 %<<% 10)  # 1 << 10
   cirrusBitMask <- ee$Number(1 %<<% 11) # 1 << 11
-  
+
   # Both flags should be set to zero, indicating clear conditions.
   mask <- ((qa$bitwiseAnd(cloudBitMask))$eq(0))$And(qa$bitwiseAnd(cirrusBitMask)$eq(0))
-  
+
   return(ee$Image(img$updateMask(mask)))
 }
 
 ltm_s2_clouds <- function(img){
-  
+
   # Select QA60 band
   qa <- img$select("QA60")
-  
+
   # Define bit masks for clouds and cirrus
   cloudBitMask <- ee$Number(1 %<<% 10)  # 1 << 10
   cirrusBitMask <- ee$Number(1 %<<% 11) # 1 << 11
-  
+
   # Identify cloud pixels (clouds or cirrus)
   cloud_mask <- qa$bitwiseAnd(cloudBitMask)$neq(0)$Or(qa$bitwiseAnd(cirrusBitMask)$neq(0))
-  
+
   # Create binary mask: 1 for cloud pixels, 0 for clear pixels
   binary_cloud_mask <- cloud_mask$rename("cloud_mask")$uint8()
-  
+
   # Preserve original image properties and timestamp
-  return(binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start', 
+  return(binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start',
                                                                         img$get('system:time_start')))
-  
+
 }
 
 
 # Function to compute NDVI and extract value at the point
 ltm_calc_ndvi <- function(img) {
-  
+
   ndvi <- img$normalizedDifference(c('NIR', 'Red'))$rename('NDVI')
-  ndvi <- ndvi$copyProperties(img, img$propertyNames())$set('system:time_start', 
+  ndvi <- ndvi$copyProperties(img, img$propertyNames())$set('system:time_start',
                                                             img$get('system:time_start'))
-  
+
   qa <- img$select("QA60")
   cloudBitMask <- ee$Number(1 %<<% 10)  # 1 << 10
   cirrusBitMask <- ee$Number(1 %<<% 11) # 1 << 11
   cloud_mask <- qa$bitwiseAnd(cloudBitMask)$neq(0)$Or(qa$bitwiseAnd(cirrusBitMask)$neq(0))
   binary_cloud_mask <- cloud_mask$rename("cloud_mask")$uint8()
-  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start', 
+  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start',
                                                                                       img$get('system:time_start'))
-  
+
   return(ee$Image(ndvi)$addBands(ee$Image(binary_cloud_mask)))
 }
 
 
 # Function to compute NBR and extract value at the point
 ltm_calc_nbr <- function(img) {
-  
+
   nbr <- img$normalizedDifference(c('NIR', 'SWIR2'))$rename('NBR')
   nbr <- nbr$copyProperties(img, img$propertyNames())$set('system:time_start', img$get('system:time_start'))
-  
+
   qa <- img$select("QA60")
   cloudBitMask <- ee$Number(1 %<<% 10)  # 1 << 10
   cirrusBitMask <- ee$Number(1 %<<% 11) # 1 << 11
   cloud_mask <- qa$bitwiseAnd(cloudBitMask)$neq(0)$Or(qa$bitwiseAnd(cirrusBitMask)$neq(0))
   binary_cloud_mask <- cloud_mask$rename("cloud_mask")$uint8()
-  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start', 
+  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start',
                                                                                       img$get('system:time_start'))
-  
+
   return(ee$Image(nbr)$addBands(ee$Image(binary_cloud_mask)))
 }
 
 
 # Function to compute NDRE and extract value at the point
 ltm_calc_ndre <- function(img) {
-  
+
   ndre <- img$normalizedDifference(c('NIR', 'RE1'))$rename('NDRE')
   ndre <- ndre$copyProperties(img, img$propertyNames())$set('system:time_start', img$get('system:time_start'))
-  
+
   qa <- img$select("QA60")
   cloudBitMask <- ee$Number(1 %<<% 10)  # 1 << 10
   cirrusBitMask <- ee$Number(1 %<<% 11) # 1 << 11
   cloud_mask <- qa$bitwiseAnd(cloudBitMask)$neq(0)$Or(qa$bitwiseAnd(cirrusBitMask)$neq(0))
   binary_cloud_mask <- cloud_mask$rename("cloud_mask")$uint8()
-  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start', 
+  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start',
                                                                                       img$get('system:time_start'))
-  
+
   return(ee$Image(ndre)$addBands(ee$Image(binary_cloud_mask)))
 }
 
 
 
 ltm_calc_evi <- function(img){
-  
+
   evi <- ee$Image(img$expression(
     '2.5 * ((NIR - Red) / (NIR + 6 * Red - 7.5 * Blue + 1))',
     list(
@@ -154,22 +154,22 @@ ltm_calc_evi <- function(img){
     ))
   )$rename('EVI')
   evi <- evi$copyProperties(img, img$propertyNames())$set('system:time_start', img$get('system:time_start'))
-  
+
   qa <- img$select("QA60")
   cloudBitMask <- ee$Number(1 %<<% 10)  # 1 << 10
   cirrusBitMask <- ee$Number(1 %<<% 11) # 1 << 11
   cloud_mask <- qa$bitwiseAnd(cloudBitMask)$neq(0)$Or(qa$bitwiseAnd(cirrusBitMask)$neq(0))
   binary_cloud_mask <- cloud_mask$rename("cloud_mask")$uint8()
-  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start', 
+  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start',
                                                                                       img$get('system:time_start'))
-  
+
   return(ee$Image(evi)$addBands(ee$Image(binary_cloud_mask)))
 }
 
 
 
 ltm_calc_evi2 <- function(img){
-  
+
   evi2 <- ee$Image(img$expression(
     '2.4 * ((NIR - Red) / (NIR + Red + 1.0))',
     list(
@@ -178,15 +178,15 @@ ltm_calc_evi2 <- function(img){
     ))
   )$rename('EVI2')
   evi2 <- evi2$copyProperties(img, img$propertyNames())$set('system:time_start', img$get('system:time_start'))
-  
+
   qa <- img$select("QA60")
   cloudBitMask <- ee$Number(1 %<<% 10)  # 1 << 10
   cirrusBitMask <- ee$Number(1 %<<% 11) # 1 << 11
   cloud_mask <- qa$bitwiseAnd(cloudBitMask)$neq(0)$Or(qa$bitwiseAnd(cirrusBitMask)$neq(0))
   binary_cloud_mask <- cloud_mask$rename("cloud_mask")$uint8()
-  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start', 
+  binary_cloud_mask <- binary_cloud_mask$copyProperties(img, img$propertyNames())$set('system:time_start',
                                                                                       img$get('system:time_start'))
-  
+
   return(ee$Image(evi2)$addBands(ee$Image(binary_cloud_mask)))
 }
 
@@ -194,50 +194,104 @@ ltm_calc_evi2 <- function(img){
 
 get_timerange <- function(x) {
   #stopifnot(inherits(x, "spidf"))
-  
+
   if (!"ti" %in% names(x)) {
     stop("The object does not contain a 'ti' column.")
   }
-  
+
   # Convert to Date
   ti_dates <- as.Date(x$ti)
-  
+
   # Handle empty or invalid cases
   if (length(ti_dates) == 0 || all(is.na(ti_dates))) {
     return(c(start_date = NA_character_, end_date = NA_character_))
   }
-  
+
   range_dates <- range(ti_dates, na.rm = TRUE)
-  
+
   return(c(
     start_date = as.Date(format(range_dates[1], "%Y-%m-%d")),
     end_date   = as.Date(format(range_dates[2], "%Y-%m-%d"))
   ))
 }
 
+ltm_ee_features_to_df <- function(features) {
+  if (is.null(features) || length(features) == 0L) {
+    return(data.frame())
+  }
+
+  rows <- lapply(features, function(feature) {
+    properties <- feature$properties
+
+    if (is.null(properties)) {
+      properties <- list()
+    }
+
+    if (is.null(properties[["system:id"]]) && !is.null(feature$id)) {
+      properties[["system:id"]] <- feature$id
+    }
+
+    properties
+  })
+
+  out <- dplyr::bind_rows(rows)
+  names(out) <- make.names(names(out), unique = TRUE)
+  out
+}
+
+ltm_ee_feature_collection_to_df <- function(x_fc, max_features = 10000L) {
+  feature_count <- try(
+    ee$FeatureCollection(x_fc)$size()$getInfo(),
+    silent = TRUE
+  )
+
+  if (!inherits(feature_count, "try-error") &&
+      is.numeric(feature_count) &&
+      length(feature_count) == 1L &&
+      feature_count > max_features) {
+    stop(
+      "Too many features returned from GEE (",
+      feature_count,
+      "). Increase max_features if you really intend to download that many rows.",
+      call. = FALSE
+    )
+  }
+
+  feature_collection_info <- try(
+    ee$FeatureCollection$getInfo(x_fc),
+    silent = TRUE
+  )
+
+  if (inherits(feature_collection_info, "try-error")) {
+    stop("An error occurred while getting point spectral data from GEE", call. = TRUE)
+  }
+
+  ltm_ee_features_to_df(feature_collection_info$features)
+}
+
 
 ltm_s2_get_data_point <- function(lat, lon, start_date, end_date, spi = "NDVI",
-                                  proc_level = "L2A", crs_code = "EPSG:4326", 
+                                  proc_level = "L2A", crs_code = "EPSG:4326",
                                   rm_duplicates = TRUE, tree_id = NULL,
                                   use_buffer = FALSE, buffer_radius_m = NULL,
                                   cloud_mask_threshold = 0.5){
-  
-  
+
+
   if(!(spi %in% SPECTRAL_INDICES_LIST)){
     stop("The spi is not listed as a valid spectral index. Available indices are: ",
          paste(SPECTRAL_INDICES_LIST, collapse=", "))
   }
-  
+
   if(!(proc_level %in% PROC_LEVELS_LIST)){
     stop("The proc_level is not listed as a valid spectral index. Available indices are: ",
          paste(PROC_LEVELS_LIST, collapse=", "))
   }
-  
+
   if(ltm_check_gee_status() != "CONNECTED"){
-    stop("Google Earth Engine (GEE) has not been initialized. Please run ltm_start_gee() 
+    stop("Google Earth Engine (GEE) has not been initialized. Please run ltm_start_gee()
          before calling this function.")
   }
-  
+
   if (use_buffer) {
     if (!is.numeric(buffer_radius_m) || is.null(buffer_radius_m) || buffer_radius_m <= 0) {
       stop("When use_buffer=TRUE you must set buffer_radius_m to a positive number (meters).")
@@ -247,27 +301,27 @@ ltm_s2_get_data_point <- function(lat, lon, start_date, end_date, spi = "NDVI",
   if(!use_buffer && !is.null(buffer_radius_m) ){
     buffer_radius_m <- NULL
   }
-  
+
   # Create the point geometry to extract data
   target_point <- ee$Geometry$Point(c(lon, lat))
-  # Use either point or buffer  
+  # Use either point or buffer
   target_geom  <- if(use_buffer) target_point$buffer(buffer_radius_m) else target_point
-  
-  
+
+
   # Load the Sentinel-2 L2A image collection (surface reflectance product)
-  s2_collection <- 
-    ltm_get_s2_imgcol(proc_level) %>% 
-    ee$ImageCollection$filterBounds(target_point) %>% 
+  s2_collection <-
+    ltm_get_s2_imgcol(proc_level) %>%
+    ee$ImageCollection$filterBounds(target_point) %>%
     ee$ImageCollection$filterDate(start_date, end_date) %>%
     ee$ImageCollection$map(ltm_s2_scale_reflectance)
-  
-  
-  dts <- try(ee_get_date_ic(s2_collection, time_end = FALSE), silent = TRUE)
-  
+
+
+  dts <- try(rgee::ee_get_date_ic(s2_collection, time_end = FALSE), silent = TRUE)
+
   if(inherits(dts, "try-error")){
     stop("An error occurred while getting image dates from GEE", call. = FALSE)
   }
-  
+
   if(spi == "NDVI"){
     # Map the NDVI extraction function over the image collection
     s2_collection <- s2_collection %>%
@@ -298,9 +352,9 @@ ltm_s2_get_data_point <- function(lat, lon, start_date, end_date, spi = "NDVI",
   }
 
   ## Spectral index
-  
+
   # Map using reduceRegion instead of sample
-  
+
   s2_spi_features <- s2_collection$map(function(img) {
     img_val <- img$reduceRegion(
       reducer   = ee$Reducer$mean(),
@@ -313,22 +367,28 @@ ltm_s2_get_data_point <- function(lat, lon, start_date, end_date, spi = "NDVI",
     )
     ee$Feature(NULL)$copyProperties(img, img$propertyNames())$set(img_val)
   })
-  
+
   # Filter out any features where 'cloud_mask' is null
   spi_values <- ee$FeatureCollection(
     s2_spi_features$filter(
       ee$Filter$notNull(list("cloud_mask",spi))
-      ) 
+      )
     )
-  
-  # Convert safely to sf - get data from point
-  spi_values_list <- try(ee_as_sf(spi_values) %>% st_drop_geometry(), silent = TRUE)
-  
-  if(inherits(spi_values_list, "try-error")){
-    stop("An error occurred while getting point spectral data from GEE", call. = TRUE)
-  }
 
-  
+  # Convert the feature collection directly to a plain table. Geometry is not
+  # used here, so avoiding sf/geojson conversion also avoids noisy GDAL warnings.
+  spi_values_list <- ltm_ee_feature_collection_to_df(spi_values)
+
+  required_spi_cols <- c(spi, "cloud_mask", "system.id")
+  missing_spi_cols <- setdiff(required_spi_cols, names(spi_values_list))
+  if (length(missing_spi_cols) > 0L) {
+    for (column_name in missing_spi_cols) {
+      spi_values_list[[column_name]] <- vector(mode = "logical", length = nrow(spi_values_list))
+    }
+  }
+  spi_values_list <- spi_values_list[, required_spi_cols, drop = FALSE]
+
+
   # binarize cloud mask (mean cloud fraction)
   if (nrow(spi_values_list) > 0) {
     spi_values_list <- spi_values_list %>%
@@ -336,17 +396,17 @@ ltm_s2_get_data_point <- function(lat, lon, start_date, end_date, spi = "NDVI",
         cloud_mask = as.integer(.data$cloud_mask >= cloud_mask_threshold)
       )
   }
-  
-  dt <- dplyr::left_join(dts,spi_values_list[,c(spi,"cloud_mask","system.id")], 
+
+  dt <- dplyr::left_join(dts,spi_values_list[,c(spi,"cloud_mask","system.id")],
                   by=c("id"="system.id"))
-  
+
   colnames(dt) <- c("id","ti","spi","cloud_mask")
-  
-  dt <- dt %>% 
-    mutate(masked_vals = ifelse(.data$cloud_mask==1, NA_real_, .data$spi)) %>% 
-    select(1,2,5,3,4) # id, ti, masked_vals, spi, cloud_mask
-  
-  
+
+  dt <- dt %>%
+    dplyr::mutate(masked_vals = ifelse(.data$cloud_mask == 1, NA_real_, .data$spi)) %>%
+    dplyr::select(1, 2, 5, 3, 4) # id, ti, masked_vals, spi, cloud_mask
+
+
   # Assign metadata as attributes
   attr(dt, "lat") <- lat
   attr(dt, "lon") <- lon
@@ -354,36 +414,36 @@ ltm_s2_get_data_point <- function(lat, lon, start_date, end_date, spi = "NDVI",
   attr(dt, "end_date") <- as.Date(end_date)
 
   attr(dt, "tree_id") <- tree_id
-  
+
   attr(dt, "use_buffer") <- use_buffer
   attr(dt, "buffer_radius_m") <- buffer_radius_m
   attr(dt, "cloud_mask_threshold") <- cloud_mask_threshold
-  
+
   attr(dt, "range_start") <- as.Date(get_timerange(dt)[1])
   attr(dt, "range_end") <- as.Date(get_timerange(dt)[2])
-  
+
   attr(dt, "spi") <- spi
   attr(dt, "proc_level") <- proc_level
   attr(dt, "crs_code") <- crs_code
-  
+
   attr(dt, "regularized") <- FALSE
-  
+
   attr(dt, "mov_window") <- FALSE
   attr(dt, "mov_window_quantile") <- NA
   attr(dt, "mov_window_size_days") <- NA
-  
+
   attr(dt, "whit_smoothing") <- FALSE
   attr(dt, "whit_lambda") <- NA
   attr(dt, "whit_quantile_threshold") <- NA
   attr(dt, "whit_weights_used") <- NA
-  
+
   # Assign class
   class(dt) <- c("spidf", class(dt))
-  
+
   if(rm_duplicates){
     dt <- ltm_remove_duplicates(dt)
   }
-    
+
   return(dt)
 }
 
@@ -398,14 +458,14 @@ print.spidf <- function(x, ...) {
   cat(" Is the time series regularized?: ", ifelse(isTRUE(is_regularized(x)), "Yes", "No"), "\n", sep = "")
   cat(" Moving window?: ", ifelse(isTRUE(has_mov_window(x)), "Yes", "No"), "\n", sep = "")
   cat(" Whittaker smoothing?: ", ifelse(isTRUE(is_whit_smoothed(x)), "Yes", "No"), "\n\n", sep = "")
-  
+
   # Call default data.frame print method
   NextMethod("print", x, ...)
 }
 
 
 ## -------------------------------------------------------------
-## GET Functions 
+## GET Functions
 ## -------------------------------------------------------------
 
 # Core metadata
@@ -482,7 +542,7 @@ get_cloud_mask_threshold <- function(x) UseMethod("get_cloud_mask_threshold")
 get_cloud_mask_threshold.spidf <- function(x) attr(x, "cloud_mask_threshold")
 
 ## -------------------------------------------------------------
-## SET Functions 
+## SET Functions
 ## -------------------------------------------------------------
 
 # Set latitude attribute
