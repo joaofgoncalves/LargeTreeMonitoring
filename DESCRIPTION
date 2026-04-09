@@ -16,7 +16,6 @@ License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Imports:
-    bcp,
     bfast,
     bitops,
     cpm,
@@ -24,23 +23,29 @@ Imports:
     ecp,
     forecast,
     ggplot2,
+    htmltools,
     imputeTS,
     jsonlite,
     leaflet,
     lubridate,
+    magrittr,
     mcp,
     patchwork,
-    pastecs,
     phenofit,
-    pracma,
     readr,
     rgee,
-    rgeeExtra,
-    sf,
+    rlang,
+    robslopes,
+    scales,
     shiny,
     shinyalert,
     shinyjs,
     slider,
-    terra,
-    tidyverse
+    strucchangeRcpp,
+    tidyr,
+    wbs,
+    zoo
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
 RoxygenNote: 7.3.3
