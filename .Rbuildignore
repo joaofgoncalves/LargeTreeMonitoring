@@ -5,7 +5,11 @@
 ^\.Rd2pdf.*$
 ^\.{1,2}Rcheck$
 ^LargeTreeMonitoring\.Rcheck$
+^check-.*$
 ^README\.md$
 ^README\.html$
 ^ltm_cache$
+^tests/testthat/ltm_cache$
+^tests/testthat/_problems$
+^tests/testthat/testthat-problems\.rds$
 ^www$
