@@ -402,7 +402,7 @@ ltm_app <- function(config_path = NULL) {
 
           shiny::dateInput("start_date", "Start Date", value = "2015-01-01"),
           shiny::dateInput("end_date", "End Date", value = "2024-12-31"),
-          shiny::selectInput("spi", "Spectral Index", choices = c("NDVI", "EVI")),
+          shiny::selectInput("spi", "Spectral Index", choices = c("NDVI", "EVI", "EVI2", "NBR", "NDRE")),
           shiny::selectInput("proc_level", "Processing Level", choices = c("L1C","L2A")),
           shiny::actionButton("fetch_data", "Fetch Data"),
 
@@ -484,8 +484,8 @@ ltm_app <- function(config_path = NULL) {
                        value = -10, max = 0),
 
           shiny::radioButtons(
-            inputId = "thresh_fun",
-            label   = "Threshold change function",
+            inputId = "lt_fun",
+            label   = "Long-term aggregation function",
             choices = c("Median","90% percentile"),
             selected = "Median"),
 
@@ -1229,10 +1229,10 @@ ltm_app <- function(config_path = NULL) {
         thresh_date   <- input$break_thresh_date
         tresh_int     <- NULL
 
-        if(input$thresh_fun == "Median"){
-          thresh_fun <- stats::median
-        } else if(input$thresh_fun == "90% percentile"){
-          thresh_fun <- Percentile90
+        if(input$lt_fun == "Median"){
+          lt_fun <- stats::median
+        } else if(input$lt_fun == "90% percentile"){
+          lt_fun <- Percentile90
         }
 
         ##
@@ -1253,7 +1253,7 @@ ltm_app <- function(config_path = NULL) {
                 thresh_date   = thresh_date,
                 thresh_change = thresh_change,
                 tresh_int     = tresh_int,
-                thresh_fun    = thresh_fun
+            lt_fun        = lt_fun
               )
 
             } else if (method == "ed") {
@@ -1270,7 +1270,7 @@ ltm_app <- function(config_path = NULL) {
                 thresh_date   = thresh_date,
                 thresh_change = thresh_change,
                 tresh_int     = tresh_int,
-                thresh_fun    = thresh_fun
+            lt_fun        = lt_fun
               )
 
             } else if (method == "bfast") {
@@ -1289,7 +1289,7 @@ ltm_app <- function(config_path = NULL) {
                 thresh_date   = thresh_date,
                 thresh_change = thresh_change,
                 tresh_int     = tresh_int,
-                thresh_fun    = thresh_fun
+            lt_fun        = lt_fun
               )
 
 
@@ -1320,7 +1320,7 @@ ltm_app <- function(config_path = NULL) {
                 thresh_date   = thresh_date,
                 thresh_change = thresh_change,
                 tresh_int     = tresh_int,
-                thresh_fun    = thresh_fun
+            lt_fun        = lt_fun
               )
 
             } else if (method == "wbs") {
@@ -1332,7 +1332,7 @@ ltm_app <- function(config_path = NULL) {
                 thresh_date   = thresh_date,
                 thresh_change = thresh_change,
                 tresh_int     = tresh_int,
-                thresh_fun    = thresh_fun,
+            lt_fun        = lt_fun,
                 num_intervals = params()$wbs$num_intervals
               )
             }
@@ -1385,8 +1385,8 @@ ltm_app <- function(config_path = NULL) {
         "run_id",
         "data_type",
         "has_breaks",
-        "has_valid_breaks_lt_med",
-        "has_valid_breaks_st_med",
+        "has_valid_breaks_lt",
+        "has_valid_breaks_st",
         "has_valid_breaks_st_trend",
         "break_date",
         "break_magn"
@@ -1417,8 +1417,8 @@ ltm_app <- function(config_path = NULL) {
       bool_cols <- intersect(
         c(
           "has_breaks",
-          "has_valid_breaks_lt_med",
-          "has_valid_breaks_st_med",
+          "has_valid_breaks_lt",
+          "has_valid_breaks_st",
           "has_valid_breaks_st_trend"
         ),
         names(df)
@@ -1432,8 +1432,8 @@ ltm_app <- function(config_path = NULL) {
         run_id = "Run ID",
         data_type = "Data type",
         has_breaks = "Breaks found?",
-        has_valid_breaks_lt_med = "Long-term median valid?",
-        has_valid_breaks_st_med = "Short-term median valid?",
+        has_valid_breaks_lt = "Long-term valid?",
+        has_valid_breaks_st = "Short-term valid?",
         has_valid_breaks_st_trend = "Short-term trend valid?",
         break_date = "Break date",
         break_magn = "Break change"
@@ -1477,7 +1477,7 @@ ltm_app <- function(config_path = NULL) {
 
       # 2) Call the function
 
-      if(any(df$has_valid_breaks_lt_med == TRUE)){
+      if(any(df$has_valid_breaks_lt == TRUE)){
         plot_valid_breaks(df)
       }else{
         return(NULL)

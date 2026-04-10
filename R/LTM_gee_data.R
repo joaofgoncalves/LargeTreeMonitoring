@@ -1,5 +1,19 @@
 
-
+#' Scale Sentinel-2 reflectance bands and retain QA information
+#'
+#' Applies a scaling factor to Sentinel-2 reflectance bands (multiplying by
+#' 0.0001) and converts them to floating point values. The function preserves
+#' the `QA60` quality band and copies all image properties, including
+#' `system:time_start`, to the output image.
+#'
+#' @param img An `ee$Image` object representing a Sentinel-2 image.
+#'
+#' @return
+#' An `ee$Image` with scaled reflectance bands, the original `QA60` band, and
+#' preserved metadata.
+#'
+#' @keywords internal
+#'
 ltm_s2_scale_reflectance <- function(img) {
 
   refl_bands <- c("Blue", "Green", "Red", "RE1", "RE2", "RE3",
@@ -16,6 +30,21 @@ ltm_s2_scale_reflectance <- function(img) {
 }
 
 
+#' Get a Sentinel-2 image collection from Google Earth Engine
+#'
+#' Returns a harmonized Sentinel-2 image collection from Google Earth Engine
+#' for the requested processing level and renames the selected bands to
+#' standardized names used by the package.
+#'
+#' @param proc_level Character. Sentinel-2 processing level to use. Supported
+#'   values are `"L2A"` or `"L2"` for surface reflectance, and `"L1C"` or
+#'   `"L1"` for top-of-atmosphere reflectance.
+#'
+#' @return
+#' An `ee$ImageCollection` with selected and renamed Sentinel-2 bands.
+#'
+#' @keywords internal
+#'
 ltm_get_s2_imgcol <- function(proc_level = "L2A") {
 
   ## ----------------------------------------------------------------------- ##
@@ -50,6 +79,19 @@ ltm_get_s2_imgcol <- function(proc_level = "L2A") {
 }
 
 
+#' Mask clouds and cirrus in a Sentinel-2 image
+#'
+#' Applies a cloud mask to a Sentinel-2 image using the `QA60` quality band.
+#' Pixels flagged as clouds or cirrus (bits 10 and 11) are masked out,
+#' retaining only clear-sky observations.
+#'
+#' @param img An `ee$Image` object representing a Sentinel-2 image.
+#'
+#' @return
+#' An `ee$Image` with cloud- and cirrus-contaminated pixels masked.
+#'
+#' @keywords internal
+#'
 ltm_s2_mask_clouds <- function(img){
 
   # Select quality layer
@@ -65,6 +107,23 @@ ltm_s2_mask_clouds <- function(img){
   return(ee$Image(img$updateMask(mask)))
 }
 
+
+#' Derive a binary cloud mask from a Sentinel-2 image
+#'
+#' Extracts cloud information from the `QA60` quality band of a Sentinel-2
+#' image and creates a binary cloud mask. Pixels flagged as clouds or cirrus
+#' (bits 10 and 11) are assigned a value of 1, and clear-sky pixels are
+#' assigned a value of 0.
+#'
+#' @param img An `ee$Image` object representing a Sentinel-2 image.
+#'
+#' @return
+#' An `ee$Image` containing a single band named `"cloud_mask"` with binary
+#'   values (1 = cloud/cirrus, 0 = clear), preserving the original image
+#'   properties and timestamp.
+#'
+#' @keywords internal
+#'
 ltm_s2_clouds <- function(img){
 
   # Select QA60 band
@@ -87,7 +146,20 @@ ltm_s2_clouds <- function(img){
 }
 
 
-# Function to compute NDVI and extract value at the point
+#' Compute NDVI and attach a binary cloud mask
+#'
+#' Computes the normalized difference vegetation index (NDVI) from the `NIR`
+#' and `Red` bands of a Sentinel-2 image and adds a binary cloud mask derived
+#' from the `QA60` band. The output preserves the original image properties and
+#' acquisition time.
+#'
+#' @param img An `ee$Image` object representing a Sentinel-2 image.
+#'
+#' @return
+#' An `ee$Image` with two bands: `NDVI` and `cloud_mask`.
+#'
+#' @keywords internal
+#'
 ltm_calc_ndvi <- function(img) {
 
   ndvi <- img$normalizedDifference(c('NIR', 'Red'))$rename('NDVI')
@@ -106,7 +178,20 @@ ltm_calc_ndvi <- function(img) {
 }
 
 
-# Function to compute NBR and extract value at the point
+#' Compute NBR and attach a binary cloud mask
+#'
+#' Computes the normalized burn ratio (NBR) from the `NIR` and `SWIR2` bands of
+#' a Sentinel-2 image and adds a binary cloud mask derived from the `QA60`
+#' band. The output preserves the original image properties and acquisition
+#' time.
+#'
+#' @param img An `ee$Image` object representing a Sentinel-2 image.
+#'
+#' @return
+#' An `ee$Image` with two bands: `NBR` and `cloud_mask`.
+#'
+#' @keywords internal
+#'
 ltm_calc_nbr <- function(img) {
 
   nbr <- img$normalizedDifference(c('NIR', 'SWIR2'))$rename('NBR')
@@ -124,7 +209,20 @@ ltm_calc_nbr <- function(img) {
 }
 
 
-# Function to compute NDRE and extract value at the point
+#' Compute NDRE and attach a binary cloud mask
+#'
+#' Computes the normalized difference red-edge index (NDRE) from the `NIR` and
+#' `RE1` bands of a Sentinel-2 image and adds a binary cloud mask derived from
+#' the `QA60` band. The output preserves the original image properties and
+#' acquisition time.
+#'
+#' @param img An `ee$Image` object representing a Sentinel-2 image.
+#'
+#' @return
+#' An `ee$Image` with two bands: `NDRE` and `cloud_mask`.
+#'
+#' @keywords internal
+#'
 ltm_calc_ndre <- function(img) {
 
   ndre <- img$normalizedDifference(c('NIR', 'RE1'))$rename('NDRE')
@@ -142,7 +240,19 @@ ltm_calc_ndre <- function(img) {
 }
 
 
-
+#' Compute EVI and attach a binary cloud mask
+#'
+#' Computes the enhanced vegetation index (EVI) from the `NIR`, `Red`, and
+#' `Blue` bands of a Sentinel-2 image and adds a binary cloud mask derived from
+#' the `QA60` band. The output preserves the original image properties and
+#' acquisition time.
+#'
+#' @param img An `ee$Image` object representing a Sentinel-2 image.
+#'
+#' @return
+#' An `ee$Image` with two bands: `EVI` and `cloud_mask`.
+#'
+#' @keywords internal
 ltm_calc_evi <- function(img){
 
   evi <- ee$Image(img$expression(
@@ -167,7 +277,20 @@ ltm_calc_evi <- function(img){
 }
 
 
-
+#' Compute EVI2 and attach a binary cloud mask
+#'
+#' Computes the two-band enhanced vegetation index (EVI2) from the `NIR` and
+#' `Red` bands of a Sentinel-2 image and adds a binary cloud mask derived from
+#' the `QA60` band. The output preserves the original image properties and
+#' acquisition time.
+#'
+#' @param img An `ee$Image` object representing a Sentinel-2 image.
+#'
+#' @return
+#' An `ee$Image` with two bands: `EVI2` and `cloud_mask`.
+#'
+#' @keywords internal
+#'
 ltm_calc_evi2 <- function(img){
 
   evi2 <- ee$Image(img$expression(
@@ -191,7 +314,20 @@ ltm_calc_evi2 <- function(img){
 }
 
 
-
+#' Get the time range of a time series
+#'
+#' Computes the minimum and maximum dates from the `ti` column of a data
+#' frame or `spidf` object and returns them as a named vector.
+#'
+#' @param x A data frame or `spidf` object containing a `ti` column with
+#'   date-like values.
+#'
+#' @return
+#' A named vector with elements `start_date` and `end_date` of class `Date`.
+#' Returns `NA` values if the input contains no valid dates.
+#'
+#' @keywords internal
+#'
 get_timerange <- function(x) {
   #stopifnot(inherits(x, "spidf"))
 
@@ -215,6 +351,21 @@ get_timerange <- function(x) {
   ))
 }
 
+
+#' Convert a list of Earth Engine features to a data frame
+#'
+#' Converts a list of Earth Engine feature objects into a data frame by
+#' extracting their properties. Ensures that a `system.id` field is present
+#' when available and standardizes column names.
+#'
+#' @param features A list of Earth Engine feature objects.
+#'
+#' @return
+#' A data frame where each row corresponds to a feature and columns correspond
+#'   to feature properties. Returns an empty data frame if input is `NULL` or empty.
+#'
+#' @keywords internal
+#'
 ltm_ee_features_to_df <- function(features) {
   if (is.null(features) || length(features) == 0L) {
     return(data.frame())
@@ -239,6 +390,22 @@ ltm_ee_features_to_df <- function(features) {
   out
 }
 
+
+#' Convert an Earth Engine FeatureCollection to a data frame
+#'
+#' Retrieves a FeatureCollection from Google Earth Engine, checks its size
+#' against a maximum threshold, and converts its features into a data frame.
+#'
+#' @param x_fc An `ee$FeatureCollection` object.
+#' @param max_features Integer. Maximum number of features allowed to be
+#'   retrieved. Defaults to 10000.
+#'
+#' @return
+#' A data frame where each row corresponds to a feature and columns correspond
+#'   to feature properties.
+#'
+#' @keywords internal
+#'
 ltm_ee_feature_collection_to_df <- function(x_fc, max_features = 10000L) {
   feature_count <- try(
     ee$FeatureCollection(x_fc)$size()$getInfo(),
@@ -270,6 +437,38 @@ ltm_ee_feature_collection_to_df <- function(x_fc, max_features = 10000L) {
 }
 
 
+#' Extract a Sentinel-2 spectral index time series for a point or buffer
+#'
+#' Retrieves a Sentinel-2 time series from Google Earth Engine for a target
+#' location, computes the selected spectral index, applies a binary cloud mask,
+#' and returns the result as an object of class `spidf`.
+#'
+#' @param lat Numeric. Latitude of the target location.
+#' @param lon Numeric. Longitude of the target location.
+#' @param start_date Character or Date. Start date of the extraction period.
+#' @param end_date Character or Date. End date of the extraction period.
+#' @param spi Character. Spectral index to compute. Must be one of
+#'   "NDVI","EVI","NBR","NDRE","EVI2"
+#' @param proc_level Character. Sentinel-2 processing level to use. Must be one
+#'   of "L1","L1C","L2","L2A"
+#' @param crs_code Character. CRS code passed to Earth Engine during reduction.
+#' @param rm_duplicates Logical. If `TRUE`, duplicate observations are removed
+#'   with `ltm_remove_duplicates()`.
+#' @param tree_id Optional identifier associated with the target tree or
+#'   location. Stored as an attribute in the output.
+#' @param use_buffer Logical. If `TRUE`, values are extracted from a buffer
+#'   around the point.
+#' @param buffer_radius_m Numeric. Buffer radius in meters. Required when
+#'   `use_buffer = TRUE`.
+#' @param cloud_mask_threshold Numeric. Threshold used to binarize the mean cloud
+#'   mask; values greater than or equal to this threshold are treated as cloudy.
+#'
+#' @return
+#' An object of class `spidf` with columns `id`, `ti`, `masked_vals`, `spi`,
+#' and `cloud_mask`, plus metadata stored as attributes.
+#'
+#' @export
+#'
 ltm_s2_get_data_point <- function(lat, lon, start_date, end_date, spi = "NDVI",
                                   proc_level = "L2A", crs_code = "EPSG:4326",
                                   rm_duplicates = TRUE, tree_id = NULL,
@@ -447,7 +646,22 @@ ltm_s2_get_data_point <- function(lat, lon, start_date, end_date, spi = "NDVI",
   return(dt)
 }
 
+#' Print method for `spidf` (spectral index dataframe) objects
+#'
+#' Displays a summary of a spectral index time series stored as an `spidf`
+#' object, including spatial location, requested and available time ranges,
+#' spectral index type, processing level, coordinate system, and preprocessing
+#' status flags. The underlying data frame is then printed using the default
+#' method.
+#'
+#' @param x An object of class `spidf`.
+#' @param ... Additional arguments passed to the default `print` method.
+#'
+#' @return
+#' Invisibly returns `x`.
+#'
 #' @export
+#'
 print.spidf <- function(x, ...) {
   cat("Spectral Index Data Frame (spidf):\n")
   cat(" Location (lon/lat): [", get_longitude(x), ", ", get_latitude(x), "]\n", sep = "")

@@ -1,5 +1,5 @@
 
-## TODO: Add vertical break lines for other methods besides the long-term median
+## TODO: Add vertical break lines for other methods besides the long-term validator
 
 # 
 # ltm_plot_spidf_ts <- function(spidf_obj, tree_id = "",
@@ -32,7 +32,7 @@
 #   df_plot_breaks <- NULL
 #   if (!is.null(df_breaks)) {
 #     df_plot_breaks <- df_breaks %>%
-#       dplyr::filter(has_breaks & has_valid_breaks_lt_med) %>%
+#       dplyr::filter(has_breaks & has_valid_breaks_lt) %>%
 #       dplyr::mutate(break_date = as.Date(break_date))
 #   }
 # 
@@ -140,8 +140,8 @@ ltm_plot_spidf_ts <- function(spidf_obj, tree_id = "",
   valid_breaks_mode <- match.arg(valid_breaks_mode, choices = c("any", "all"))
   
   validator_map <- c(
-    lt_med   = "has_valid_breaks_lt_med",
-    st_med   = "has_valid_breaks_st_med",
+    lt       = "has_valid_breaks_lt",
+    st       = "has_valid_breaks_st",
     st_trend = "has_valid_breaks_st_trend"
   )
   
@@ -342,11 +342,11 @@ ltm_plot_spidf_ts <- function(spidf_obj, tree_id = "",
 
 
 plot_valid_breaks <- function(df_breaks) {
-  required_cols <- c("algorithm", "break_date", "break_magn", "has_valid_breaks_lt_med")
+  required_cols <- c("algorithm", "break_date", "break_magn", "has_valid_breaks_lt")
   stopifnot(all(required_cols %in% colnames(df_breaks)))
   
   df_valid <- df_breaks %>%
-    dplyr::filter(has_valid_breaks_lt_med == TRUE, !is.na(break_date), !is.na(break_magn))
+    dplyr::filter(has_valid_breaks_lt == TRUE, !is.na(break_date), !is.na(break_magn))
   
   # ---- Plot 1: Frequency of break dates ----
   freq_data <- df_valid %>%
@@ -365,7 +365,7 @@ plot_valid_breaks <- function(df_breaks) {
     labs(
       x = "Break date",
       y = "Frequency",
-      title = "Frequency of long-term median valid break dates"
+      title = "Frequency of long-term valid break dates"
     ) +
     theme_minimal(base_size = 13) +
     theme(
@@ -380,7 +380,7 @@ plot_valid_breaks <- function(df_breaks) {
     labs(
       x = "Algorithm",
       y = "Break magnitude",
-      title = "Distribution of long-term median valid break magnitudes"
+      title = "Distribution of long-term valid break magnitudes"
     ) +
     theme_minimal(base_size = 13) +
     theme(

@@ -40,8 +40,8 @@ make_test_ts_breaks_run <- function() {
       method = "ed",
       data_type = "spi",
       has_breaks = TRUE,
-      has_valid_breaks_lt_med = TRUE,
-      has_valid_breaks_st_med = TRUE,
+      has_valid_breaks_lt = TRUE,
+      has_valid_breaks_st = TRUE,
       has_valid_breaks_st_trend = FALSE,
       break_magn = -24.5,
       breaks_indices = 6L,
@@ -63,7 +63,42 @@ make_test_ts_breaks_run <- function() {
       trend_window_used = 3L,
       post_prop_below_baseline = 0.75,
       post_avg_deficit_pct = -7.2,
-      call = quote(dummy_call())
+      call = quote(ltm_ed_detect_breaks(lt_fun = mean, st_fun = stats::median))
+    ),
+    class = "ts_breaks_run"
+  )
+}
+
+make_test_trend_valid_ts_breaks_run <- function() {
+  structure(
+    list(
+      method = "cpm",
+      data_type = "spi_smooth",
+      has_breaks = TRUE,
+      has_valid_breaks_lt = TRUE,
+      has_valid_breaks_st = TRUE,
+      has_valid_breaks_st_trend = TRUE,
+      break_magn = -20.1,
+      breaks_indices = 8L,
+      breaks_dates = as.Date("2020-01-08"),
+      season_adj = TRUE,
+      season_used = TRUE,
+      st_change_pct = -14.0,
+      st_pre = 0.73,
+      st_post = 0.63,
+      st_window_used = 4L,
+      trend_rand_p_value = 0.03,
+      trend_slope_ts = -0.04,
+      trend_slope_ts_pct = -15.7,
+      trend_rand_null_mean_pct = -1.4,
+      trend_rand_null_sd_pct = 1.2,
+      trend_rand_effect_pct = -14.3,
+      trend_rand_B = 99L,
+      trend_rand_len = 8L,
+      trend_window_used = 4L,
+      post_prop_below_baseline = 0.85,
+      post_avg_deficit_pct = -8.9,
+      call = quote(ltm_cpm_detect_breaks(lt_fun = stats::quantile, st_fun = mean))
     ),
     class = "ts_breaks_run"
   )
@@ -75,12 +110,12 @@ test_that("ts_breaks stores validator flags with the renamed slots only", {
 
   run_details <- LargeTreeMonitoring:::ltm_get_run_details(ts_breaks_obj, "ed", "run-01")
 
-  expect_true(run_details$has_valid_breaks_lt_med)
-  expect_true(run_details$has_valid_breaks_st_med)
+  expect_true(run_details$has_valid_breaks_lt)
+  expect_true(run_details$has_valid_breaks_st)
   expect_false(run_details$has_valid_breaks_st_trend)
   expect_true(all(c(
-    "has_valid_breaks_lt_med",
-    "has_valid_breaks_st_med",
+    "has_valid_breaks_lt",
+    "has_valid_breaks_st",
     "has_valid_breaks_st_trend"
   ) %in% names(run_details)))
 })
@@ -93,47 +128,67 @@ test_that("as.data.frame.ts_breaks exposes the renamed validator columns", {
 
   expect_identical(
     c(
-      "has_valid_breaks_lt_med",
-      "has_valid_breaks_st_med",
+      "has_valid_breaks_lt",
+      "has_valid_breaks_st",
       "has_valid_breaks_st_trend"
     ),
     names(out)[match(
       c(
-        "has_valid_breaks_lt_med",
-        "has_valid_breaks_st_med",
+        "has_valid_breaks_lt",
+        "has_valid_breaks_st",
         "has_valid_breaks_st_trend"
       ),
       names(out)
     )]
   )
-  expect_true(out$has_valid_breaks_lt_med[[1]])
-  expect_true(out$has_valid_breaks_st_med[[1]])
+  expect_true(out$has_valid_breaks_lt[[1]])
+  expect_true(out$has_valid_breaks_st[[1]])
   expect_false(out$has_valid_breaks_st_trend[[1]])
 })
 
-test_that("print methods display the renamed validator labels", {
+test_that("print methods display the renamed validator labels and aggregation functions", {
   run_obj <- make_test_ts_breaks_run()
   ts_breaks_obj <- LargeTreeMonitoring:::ltm_ts_breaks(make_test_spidf())
   ts_breaks_obj <- LargeTreeMonitoring:::ltm_add_runs(ts_breaks_obj, run_obj)
 
   run_output <- paste(capture.output(print(run_obj)), collapse = "\n")
-  expect_match(run_output, "Long-term median valid", fixed = TRUE)
-  expect_match(run_output, "Short-term median valid", fixed = TRUE)
+  expect_match(run_output, "Long-term valid", fixed = TRUE)
+  expect_match(run_output, "Short-term valid", fixed = TRUE)
   expect_match(run_output, "Short-term trend valid", fixed = TRUE)
+  expect_match(run_output, "Aggregation function", fixed = TRUE)
+  expect_match(run_output, "mean", fixed = TRUE)
+  expect_match(run_output, "stats::median", fixed = TRUE)
 
   ts_breaks_output <- paste(capture.output(print(ts_breaks_obj)), collapse = "\n")
-  expect_match(ts_breaks_output, "Long-term median valid", fixed = TRUE)
-  expect_match(ts_breaks_output, "Short-term median valid", fixed = TRUE)
+  expect_match(ts_breaks_output, "Long-term valid", fixed = TRUE)
+  expect_match(ts_breaks_output, "Short-term valid", fixed = TRUE)
   expect_match(ts_breaks_output, "Short-term trend valid", fixed = TRUE)
+  expect_match(ts_breaks_output, "aggregation_fun: mean", fixed = TRUE)
+  expect_match(ts_breaks_output, "aggregation_fun: stats::median", fixed = TRUE)
 })
 
 test_that("downstream helpers use the renamed validator columns", {
   ts_breaks_obj <- LargeTreeMonitoring:::ltm_ts_breaks(make_test_spidf())
-  ts_breaks_obj <- LargeTreeMonitoring:::ltm_add_runs(ts_breaks_obj, make_test_ts_breaks_run())
+  ts_breaks_obj <- LargeTreeMonitoring:::ltm_add_runs(
+    ts_breaks_obj,
+    make_test_ts_breaks_run(),
+    make_test_trend_valid_ts_breaks_run()
+  )
   df_breaks <- as.data.frame(ts_breaks_obj)
 
   summary_text <- LargeTreeMonitoring:::ltm_summarize_break_df(df_breaks)
-  expect_match(summary_text, "long-term median valid", ignore.case = TRUE)
+  expect_match(summary_text, "Validator passes:", fixed = TRUE)
+  expect_match(summary_text, "Long-term aggregation: 2", fixed = TRUE)
+  expect_match(summary_text, "Short-term aggregation: 2", fixed = TRUE)
+  expect_match(summary_text, "Short-term trend: 1", fixed = TRUE)
+  expect_match(summary_text, "All validators: 1", fixed = TRUE)
+  expect_match(summary_text, "Long-term valid breaks:", fixed = TRUE)
+  expect_match(summary_text, "Short-term valid breaks:", fixed = TRUE)
+  expect_match(summary_text, "Short-term trend valid breaks:", fixed = TRUE)
+  expect_match(summary_text, "avg magnitude = -24.50%", fixed = TRUE)
+  expect_match(summary_text, "avg short-term change = -18.20%", fixed = TRUE)
+  expect_match(summary_text, "avg slope = -15.70%/yr", fixed = TRUE)
+  expect_match(summary_text, "avg p-value = 0.030", fixed = TRUE)
 
   valid_breaks_plot <- LargeTreeMonitoring:::plot_valid_breaks(df_breaks)
   expect_true(inherits(valid_breaks_plot, "patchwork") || inherits(valid_breaks_plot, "ggplot"))
@@ -143,7 +198,33 @@ test_that("downstream helpers use the renamed validator columns", {
     df_breaks = df_breaks,
     only_valid_breaks = TRUE,
     valid_breaks_mode = "all",
-    validators_sel = c("lt_med", "st_med", "st_trend")
+    validators_sel = c("lt", "st", "st_trend")
   )
   expect_s3_class(ts_plot, "ggplot")
+})
+
+test_that("summary reports short-term and trend validators even without long-term valid breaks", {
+  df_breaks <- data.frame(
+    method = "ed",
+    data_type = "spi",
+    has_breaks = TRUE,
+    break_date = as.Date("2020-01-06"),
+    break_magn = -12.5,
+    has_valid_breaks_lt = FALSE,
+    has_valid_breaks_st = TRUE,
+    st_change_pct = -8.4,
+    has_valid_breaks_st_trend = TRUE,
+    trend_slope_ts_pct = -9.7,
+    trend_rand_p_value = 0.04,
+    stringsAsFactors = FALSE
+  )
+
+  summary_text <- LargeTreeMonitoring:::ltm_summarize_break_df(df_breaks)
+
+  expect_match(summary_text, "Long-term aggregation: 0", fixed = TRUE)
+  expect_match(summary_text, "Short-term aggregation: 1", fixed = TRUE)
+  expect_match(summary_text, "Short-term trend: 1", fixed = TRUE)
+  expect_match(summary_text, "No long-term valid breaks were detected.", fixed = TRUE)
+  expect_match(summary_text, "Short-term valid breaks:", fixed = TRUE)
+  expect_match(summary_text, "Short-term trend valid breaks:", fixed = TRUE)
 })

@@ -71,12 +71,12 @@ ltm_add_runs <- function(ts_breaks_obj, ...) {
       season_used      = isTRUE(get_slot(run_object, "season_used", FALSE)),
       call             = get_slot(run_object, "call"),
 
-      # Median long-term validator
-      has_valid_breaks_lt_med = isTRUE(get_slot(run_object, "has_valid_breaks_lt_med", FALSE)),
+      # Long-term aggregation validator
+      has_valid_breaks_lt = isTRUE(get_slot(run_object, "has_valid_breaks_lt", FALSE)),
       break_magn       = get_slot(run_object, "break_magn"),
 
-      # Median short-term validator
-      has_valid_breaks_st_med = isTRUE(get_slot(run_object, "has_valid_breaks_st_med", FALSE)),
+      # Short-term aggregation validator
+      has_valid_breaks_st = isTRUE(get_slot(run_object, "has_valid_breaks_st", FALSE)),
       st_change_pct       = get_slot(run_object, "st_change_pct"),
       st_pre              = get_slot(run_object, "st_pre"),
       st_post             = get_slot(run_object, "st_post"),
@@ -131,7 +131,7 @@ ltm_get_run_details <- function(ts_breaks_obj, algorithm_name, run_id) {
 
 
 # Generic print for a ts_breaks container (multiple algorithms and runs)
-# Shows long-term median, short-term median, and short-term trend validators.
+# Shows long-term aggregation, short-term aggregation, and short-term trend validators.
 #' @export
 print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
   stopifnot(is.list(x))
@@ -181,6 +181,8 @@ print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
     # iterate runs
     for (run_name in names(runs)) {
       run <- runs[[run_name]]
+      lt_fun <- ltm_get_validator_fun_label(run$call, "lt_fun")
+      st_fun <- ltm_get_validator_fun_label(run$call, "st_fun")
 
       # run header
       cat(sprintf("Run: %s\n", run_name))
@@ -202,21 +204,23 @@ print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
       # validators
       cat("  Validators:\n")
 
-      # Long-term median
-      cat(sprintf("    Long-term median valid: %s", yn(run$has_valid_breaks_lt_med)))
+      # Long-term aggregation
+      cat(sprintf("    Long-term valid: %s", yn(run$has_valid_breaks_lt)))
+      cat(sprintf(" | aggregation_fun: %s", lt_fun))
       if (!is.null(run$break_magn)) cat(sprintf(" | change_percent: %s", num(run$break_magn)))
       cat("\n")
 
-      # Short-term median (if present)
-      if (has_slot(run, "has_valid_breaks_st_med") ||
+      # Short-term aggregation (if present)
+      if (has_slot(run, "has_valid_breaks_st") ||
           has_slot(run, "st_change_pct") ||
           has_slot(run, "st_window_used")) {
-        cat(sprintf("    Short-term median valid: %s", yn(run$has_valid_breaks_st_med)))
+        cat(sprintf("    Short-term valid: %s", yn(run$has_valid_breaks_st)))
+        cat(sprintf(" | aggregation_fun: %s", st_fun))
         if (has_slot(run, "st_window_used")) cat(sprintf(" | window_n: %s", as.character(run$st_window_used)))
         if (has_slot(run, "st_change_pct"))  cat(sprintf(" | change_percent: %s", num(run$st_change_pct)))
         cat("\n")
       } else {
-        cat("    Short-term median valid: NA\n")
+        cat("    Short-term valid: NA\n")
       }
 
       # Short-term trend only
@@ -268,8 +272,8 @@ as.data.frame.ts_breaks <- function(x, row.names = NULL, optional = FALSE, ...) 
     "season_adj", "season_used",
     "has_breaks",
     "break_index", "break_date", "break_magn",
-    "has_valid_breaks_lt_med",                         # long-term validator
-    "has_valid_breaks_st_med", "st_window_used", "st_change_pct", "st_pre", "st_post",
+    "has_valid_breaks_lt",                         # long-term validator
+    "has_valid_breaks_st", "st_window_used", "st_change_pct", "st_pre", "st_post",
     "has_valid_breaks_st_trend", "trend_window_used", "trend_rand_B", "trend_rand_len",
     "trend_rand_p_value", "trend_slope_ts", "trend_slope_ts_pct",
     "trend_rand_null_mean_pct", "trend_rand_null_sd_pct", "trend_rand_effect_pct",
@@ -288,8 +292,8 @@ as.data.frame.ts_breaks <- function(x, row.names = NULL, optional = FALSE, ...) 
     break_index = integer(0),
     break_date = as.Date(character(0)),
     break_magn = numeric(0),
-    has_valid_breaks_lt_med = logical(0),
-    has_valid_breaks_st_med = logical(0),
+    has_valid_breaks_lt = logical(0),
+    has_valid_breaks_st = logical(0),
     st_window_used = integer(0),
     st_change_pct = numeric(0),
     st_pre = numeric(0),
@@ -353,9 +357,9 @@ as.data.frame.ts_breaks <- function(x, row.names = NULL, optional = FALSE, ...) 
         break_magn  = magn,
 
         # validators
-        has_valid_breaks_lt_med = isTRUE(gs("has_valid_breaks_lt_med", FALSE)),
+        has_valid_breaks_lt = isTRUE(gs("has_valid_breaks_lt", FALSE)),
 
-        has_valid_breaks_st_med = isTRUE(gs("has_valid_breaks_st_med", FALSE)),
+        has_valid_breaks_st = isTRUE(gs("has_valid_breaks_st", FALSE)),
         st_window_used      = suppressWarnings(as.integer(gs("st_window_used"))),
         st_change_pct       = suppressWarnings(as.numeric(gs("st_change_pct"))),
         st_pre              = suppressWarnings(as.numeric(gs("st_pre"))),
