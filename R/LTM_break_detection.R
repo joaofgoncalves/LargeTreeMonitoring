@@ -34,6 +34,7 @@ ltm_pct_slope <- function(slope_per_step, baseline, steps_per_year) {
 
 
 # Print method for ts_breaks_run class (generic across all detectors)
+#' @export
 print.ts_breaks_run <- function(x, digits = 4, ...) {
   
   stopifnot(inherits(x, "ts_breaks_run"))
@@ -66,26 +67,26 @@ print.ts_breaks_run <- function(x, digits = 4, ...) {
   cat(sprintf("%-26s : %s\n", "Break indices", chr_fmt(x$breaks_indices)))
   cat(sprintf("%-26s : %s\n", "Break dates",   chr_fmt(x$breaks_dates)))
   
-  # Long term validator
+  # Long-term median validator
   if (isTRUE(x$has_breaks)) {
     
-    cat("\n.: Long-term reduction check:\n")
+    cat("\n.: Long-term median reduction check:\n")
     cat("-------------------------------------------\n")
-    cat(sprintf("%-26s : %s\n", "Valid breaks (long-term)", yn(x$has_valid_breaks)))
+    cat(sprintf("%-26s : %s\n", "Long-term median valid", yn(x$has_valid_breaks_lt_med)))
     cat(sprintf("%-26s : %s\n", "Change magnitudes (%)", num_fmt(x$break_magn)))
   } else {
     cat("No breaks were identified in this run.\n")
   }
   
-  # Short-term validator
-  if (!is.null(x$has_valid_breaks_st) ||
+  # Short-term median validator
+  if (!is.null(x$has_valid_breaks_st_med) ||
       !is.null(x$st_change_pct) ||
       !is.null(x$st_window_used) ||
       !is.null(x$st_pre) || !is.null(x$st_post)) {
     
-    cat("\n.: Short-term reduction check:\n")
+    cat("\n.: Short-term median reduction check:\n")
     cat("-------------------------------------------\n")
-    cat(sprintf("%-26s : %s\n", "Short-term valid", yn(x$has_valid_breaks_st)))
+    cat(sprintf("%-26s : %s\n", "Short-term median valid", yn(x$has_valid_breaks_st_med)))
     cat(sprintf("%-26s : %s\n", "Short-term window (n)",
                 if (!is.null(x$st_window_used)) as.character(x$st_window_used) else "NA"))
     cat(sprintf("%-26s : %s\n", "Short-term change (%)",    num_fmt(x$st_change_pct)))
@@ -93,17 +94,17 @@ print.ts_breaks_run <- function(x, digits = 4, ...) {
     if (!is.null(x$st_post)) cat(sprintf("%-26s : %s\n", "ST post value", num_fmt(x$st_post)))
   }
   
-  # Randomized trend validator
-  if (!is.null(x$has_valid_breaks_trend_rand) ||
+  # Short-term trend validator
+  if (!is.null(x$has_valid_breaks_st_trend) ||
       !is.null(x$trend_slope_ts_pct) ||
       !is.null(x$trend_rand_p_value) ||
       !is.null(x$trend_window_used) ||
       !is.null(x$post_prop_below_baseline) ||
       !is.null(x$post_avg_deficit_pct)) {
     
-    cat("\n.: Trend (randomized) check:\n")
+    cat("\n.: Short-term trend check:\n")
     cat("-------------------------------------------\n")
-    cat(sprintf("%-26s : %s\n", "Trend valid (randomized)", yn(x$has_valid_breaks_trend_rand)))
+    cat(sprintf("%-26s : %s\n", "Short-term trend valid", yn(x$has_valid_breaks_st_trend)))
     cat(sprintf("%-26s : %s\n", "Trend window (n)",
                 
     if (!is.null(x$trend_window_used)) as.character(x$trend_window_used) else "NA"))
@@ -162,7 +163,7 @@ ltm_trend_validator_randomized <- function(ysa, dts, brk,
   if (!is_len_ok(n, 10) || !is_len_ok(trend_window, 3)) {
     
     return(list(
-      has_valid_breaks_trend_rand = FALSE,
+      has_valid_breaks_st_trend = FALSE,
       trend_rand_p_value = NA,
       trend_slope_ts = NA,
       trend_slope_ts_pct = NA,
@@ -184,7 +185,7 @@ ltm_trend_validator_randomized <- function(ysa, dts, brk,
   
   if (!is_len_ok(ts_len, 6)) {
     return(list(
-      has_valid_breaks_trend_rand = FALSE,
+      has_valid_breaks_st_trend = FALSE,
       trend_rand_p_value = NA,
       trend_slope_ts = NA,
       trend_slope_ts_pct = NA,
@@ -210,7 +211,7 @@ ltm_trend_validator_randomized <- function(ysa, dts, brk,
   if (length(pre_all_idx) < ts_len) {
     # Not enough pre data to sample a contiguous window of this length
     return(list(
-      has_valid_breaks_trend_rand = FALSE,
+      has_valid_breaks_st_trend = FALSE,
       trend_rand_p_value = NA,
       trend_slope_ts = slope_ts,
       trend_slope_ts_pct = NA,
@@ -277,7 +278,7 @@ ltm_trend_validator_randomized <- function(ysa, dts, brk,
   #   2) EITHER centered %-slope is clearly negative (<= post_pct_thresh)
   #      OR it is significantly more negative than pre-break null (p <= alpha)
   #   3) OR (when slope not very negative) the post is sufficiently depressed
-  has_valid <- isTRUE(max(dts[ts_idx]) >= thresh_date) &&
+  st_trend_valid <- isTRUE(max(dts[ts_idx]) >= thresh_date) &&
     isTRUE(lower_level_ok) &&
     (
       (is.finite(slope_ts_pct) && slope_ts_pct <= post_pct_thresh) ||
@@ -287,7 +288,7 @@ ltm_trend_validator_randomized <- function(ysa, dts, brk,
     )
   
   list(
-    has_valid_breaks_trend_rand = has_valid,
+    has_valid_breaks_st_trend = st_trend_valid,
     trend_rand_p_value = pval,
     trend_slope_ts = slope_ts,
     trend_slope_ts_pct = slope_ts_pct,
@@ -349,7 +350,7 @@ ltm_ed_detect_breaks <- function(spidf,
     out <- list(method="ed",
                 data_type = ts_name,
                 has_breaks = FALSE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn = NA,
                 breaks_indices = NA,
                 breaks_dates = NA,
@@ -358,14 +359,14 @@ ltm_ed_detect_breaks <- function(spidf,
                 season_used = FALSE,
                 
                 # short-term
-                has_valid_breaks_st = FALSE,
+                has_valid_breaks_st_med = FALSE,
                 st_change_pct = NA,
                 st_pre = NA,
                 st_post = NA,
                 st_window_used = ifelse(is.null(st_window), NA, as.integer(st_window)),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -412,7 +413,7 @@ ltm_ed_detect_breaks <- function(spidf,
   default_out <- list(method="ed",
                       data_type = ts_name,
                       has_breaks = FALSE,
-                      has_valid_breaks = FALSE,
+                      has_valid_breaks_lt_med = FALSE,
                       break_magn = NA,
                       breaks_indices = NA,
                       breaks_dates = NA,
@@ -421,14 +422,14 @@ ltm_ed_detect_breaks <- function(spidf,
                       season_used = season_used,
                       
                       # short-term
-                      has_valid_breaks_st = FALSE,
+                      has_valid_breaks_st_med = FALSE,
                       st_change_pct = NA,
                       st_pre = NA,
                       st_post = NA,
                       st_window_used = if (is.null(st_window)) NA else as.integer(st_window),
                       
-                      # randomized trend (new)
-                      has_valid_breaks_trend_rand = FALSE,
+                      # short-term trend validator
+                      has_valid_breaks_st_trend = FALSE,
                       trend_rand_p_value = NA,
                       trend_slope_ts = NA,
                       trend_slope_ts_pct = NA,
@@ -501,11 +502,11 @@ brk_candidates[1]
   }
   break_magn <- pct_change(post_break, pre_break)
   
-  orig_valid <- isTRUE(break_date >= thresh_date) &&
+  lt_med_valid <- isTRUE(break_date >= thresh_date) &&
     isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
   
   # --- short-term validator ----------------------------------------------
-  st_valid <- FALSE
+  st_med_valid <- FALSE
   st_change_pct <- st_pre <- st_post <- NA
   st_used <- if (is.null(st_window)) NA else as.integer(st_window)
   
@@ -515,12 +516,12 @@ brk_candidates[1]
     st_pre  <- suppressWarnings(st_fun(ysa[pre_rng_st],  na.rm = TRUE))
     st_post <- suppressWarnings(st_fun(ysa[post_rng_st], na.rm = TRUE))
     st_change_pct <- pct_change(st_post, st_pre)
-    st_valid <- isTRUE(break_date >= thresh_date) &&
+    st_med_valid <- isTRUE(break_date >= thresh_date) &&
       isTRUE(is.finite(st_change_pct) && (st_change_pct <= st_thresh_change))
   }
   
   # --- randomized, recovery-aware trend validator ------------------------
-  has_valid_breaks_trend_rand <- FALSE
+  has_valid_breaks_st_trend <- FALSE
   trend_rand_p_value <- NA
   trend_slope_ts <- NA
   trend_slope_ts_pct <- NA
@@ -546,7 +547,7 @@ brk_candidates[1]
       min_prop_below     = trend_min_prop_below,
       avg_deficit_thresh = trend_avg_deficit_thresh
     )
-    has_valid_breaks_trend_rand <- trv$has_valid_breaks_trend_rand
+    has_valid_breaks_st_trend <- trv$has_valid_breaks_st_trend
     trend_rand_p_value          <- trv$trend_rand_p_value
     trend_slope_ts              <- trv$trend_slope_ts
     trend_slope_ts_pct          <- trv$trend_slope_ts_pct
@@ -563,7 +564,7 @@ brk_candidates[1]
   out <- list(method = "ed",
               data_type = ts_name,
               has_breaks = TRUE,
-              has_valid_breaks = isTRUE(orig_valid),   # *** unchanged slot ***
+              has_valid_breaks_lt_med = isTRUE(lt_med_valid),
               break_magn = break_magn,
               breaks_indices = brk,
               breaks_dates = break_date,
@@ -572,14 +573,14 @@ brk_candidates[1]
               season_used = season_used,
               
               # short-term
-              has_valid_breaks_st = isTRUE(st_valid),
+              has_valid_breaks_st_med = isTRUE(st_med_valid),
               st_change_pct = st_change_pct,
               st_pre = st_pre,
               st_post = st_post,
               st_window_used = st_used,
               
-              # randomized trend (new)
-              has_valid_breaks_trend_rand = isTRUE(has_valid_breaks_trend_rand),
+              # short-term trend validator
+              has_valid_breaks_st_trend = isTRUE(has_valid_breaks_st_trend),
               trend_rand_p_value = trend_rand_p_value,
               trend_slope_ts = trend_slope_ts,
               trend_slope_ts_pct = trend_slope_ts_pct,
@@ -640,7 +641,7 @@ ltm_cpm_detect_breaks <- function(spidf,
     out <- list(method = "cpm",
                 data_type = ts_name,
                 has_breaks = FALSE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn = NA,
                 breaks_indices = NA,
                 breaks_dates = NA,
@@ -649,14 +650,14 @@ ltm_cpm_detect_breaks <- function(spidf,
                 season_used = FALSE,
                 
                 # short-term
-                has_valid_breaks_st = FALSE,
+                has_valid_breaks_st_med = FALSE,
                 st_change_pct = NA,
                 st_pre = NA,
                 st_post = NA,
                 st_window_used = if (is.null(st_window)) NA else as.integer(st_window),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -703,7 +704,7 @@ ltm_cpm_detect_breaks <- function(spidf,
   default_out <- list(method = "cpm",
                       data_type = ts_name,
                       has_breaks = FALSE,
-                      has_valid_breaks = FALSE,
+                      has_valid_breaks_lt_med = FALSE,
                       break_magn = NA,
                       breaks_indices = NA,
                       breaks_dates = NA,
@@ -712,14 +713,14 @@ ltm_cpm_detect_breaks <- function(spidf,
                       season_used = season_used,
                       
                       # short-term
-                      has_valid_breaks_st = FALSE,
+                      has_valid_breaks_st_med = FALSE,
                       st_change_pct = NA,
                       st_pre = NA,
                       st_post = NA,
                       st_window_used = if (is.null(st_window)) NA else as.integer(st_window),
                       
-                      # randomized trend (new)
-                      has_valid_breaks_trend_rand = FALSE,
+                      # short-term trend validator
+                      has_valid_breaks_st_trend = FALSE,
                       trend_rand_p_value = NA,
                       trend_slope_ts = NA,
                       trend_slope_ts_pct = NA,
@@ -759,11 +760,11 @@ ltm_cpm_detect_breaks <- function(spidf,
   }
   break_magn <- pct_change(post_break, pre_break)
   
-  orig_valid <- isTRUE(break_date >= thresh_date) &&
+  lt_med_valid <- isTRUE(break_date >= thresh_date) &&
     isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
   
   # short-term validator --------------------------------------------------
-  st_valid <- FALSE
+  st_med_valid <- FALSE
   st_change_pct <- st_pre <- st_post <- NA
   st_used <- if (is.null(st_window)) NA else as.integer(st_window)
   
@@ -773,12 +774,12 @@ ltm_cpm_detect_breaks <- function(spidf,
     st_pre  <- suppressWarnings(st_fun(ysa[pre_rng_st],  na.rm = TRUE))
     st_post <- suppressWarnings(st_fun(ysa[post_rng_st], na.rm = TRUE))
     st_change_pct <- pct_change(st_post, st_pre)
-    st_valid <- isTRUE(break_date >= thresh_date) &&
+    st_med_valid <- isTRUE(break_date >= thresh_date) &&
       isTRUE(is.finite(st_change_pct) && (st_change_pct <= st_thresh_change))
   }
   
   # randomized, recovery-aware trend validator ---------------------------
-  has_valid_breaks_trend_rand <- FALSE
+  has_valid_breaks_st_trend <- FALSE
   trend_rand_p_value <- NA
   trend_slope_ts <- NA
   trend_slope_ts_pct <- NA
@@ -804,7 +805,7 @@ ltm_cpm_detect_breaks <- function(spidf,
       min_prop_below     = trend_min_prop_below,
       avg_deficit_thresh = trend_avg_deficit_thresh
     )
-    has_valid_breaks_trend_rand <- trv$has_valid_breaks_trend_rand
+    has_valid_breaks_st_trend <- trv$has_valid_breaks_st_trend
     trend_rand_p_value          <- trv$trend_rand_p_value
     trend_slope_ts              <- trv$trend_slope_ts
     trend_slope_ts_pct          <- trv$trend_slope_ts_pct
@@ -821,7 +822,7 @@ ltm_cpm_detect_breaks <- function(spidf,
   out <- list(method = "cpm",
               data_type = ts_name,
               has_breaks = TRUE,
-              has_valid_breaks = isTRUE(orig_valid),
+              has_valid_breaks_lt_med = isTRUE(lt_med_valid),
               break_magn = break_magn,
               breaks_indices = brk,
               breaks_dates = break_date,
@@ -830,14 +831,14 @@ ltm_cpm_detect_breaks <- function(spidf,
               season_used = season_used,
               
               # short-term
-              has_valid_breaks_st = isTRUE(st_valid),
+              has_valid_breaks_st_med = isTRUE(st_med_valid),
               st_change_pct = st_change_pct,
               st_pre = st_pre,
               st_post = st_post,
               st_window_used = st_used,
               
-              # randomized trend (new)
-              has_valid_breaks_trend_rand = isTRUE(has_valid_breaks_trend_rand),
+              # short-term trend validator
+              has_valid_breaks_st_trend = isTRUE(has_valid_breaks_st_trend),
               trend_rand_p_value = trend_rand_p_value,
               trend_slope_ts = trend_slope_ts,
               trend_slope_ts_pct = trend_slope_ts_pct,
@@ -924,7 +925,7 @@ ltm_bfast01_detect_breaks <- function(
     out <- list(method           = "bfast01",
                 data_type        = ts_name,
                 has_breaks       = FALSE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn       = NA,
                 breaks_indices   = NA,
                 breaks_dates     = NA,
@@ -933,14 +934,14 @@ ltm_bfast01_detect_breaks <- function(
                 season_used      = FALSE,
                 
                 # short-term
-                has_valid_breaks_st   = FALSE,
+                has_valid_breaks_st_med   = FALSE,
                 st_change_pct         = NA,
                 st_pre                = NA,
                 st_post               = NA,
                 st_window_used        = if (is.null(st_window)) NA else as.integer(st_window),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -963,7 +964,7 @@ ltm_bfast01_detect_breaks <- function(
     out <- list(method           = "bfast01",
                 data_type        = ts_name,
                 has_breaks       = TRUE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn       = NA,
                 breaks_indices   = brk,
                 breaks_dates     = NA,
@@ -972,14 +973,14 @@ ltm_bfast01_detect_breaks <- function(
                 season_used      = FALSE,
                 
                 # short-term
-                has_valid_breaks_st   = FALSE,
+                has_valid_breaks_st_med   = FALSE,
                 st_change_pct         = NA,
                 st_pre                = NA,
                 st_post               = NA,
                 st_window_used        = if (is.null(st_window)) NA else as.integer(st_window),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -1032,11 +1033,11 @@ ltm_bfast01_detect_breaks <- function(
   val_post <- suppressWarnings(thresh_fun(post, na.rm = TRUE))
   break_magn <- pct_change(val_post, val_pre)
   
-  orig_valid <- isTRUE(break_date >= thresh_date) &&
+  lt_med_valid <- isTRUE(break_date >= thresh_date) &&
     isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
   
   # Short-term validator -------------------------------------------------
-  st_valid <- FALSE
+  st_med_valid <- FALSE
   st_change_pct <- st_pre <- st_post <- NA
   st_used <- if (is.null(st_window)) NA else as.integer(st_window)
   
@@ -1046,12 +1047,12 @@ ltm_bfast01_detect_breaks <- function(
     st_pre  <- suppressWarnings(st_fun(ysa[pre_rng_st],  na.rm = TRUE))
     st_post <- suppressWarnings(st_fun(ysa[post_rng_st], na.rm = TRUE))
     st_change_pct <- pct_change(st_post, st_pre)
-    st_valid <- isTRUE(break_date >= thresh_date) &&
+    st_med_valid <- isTRUE(break_date >= thresh_date) &&
       isTRUE(is.finite(st_change_pct) && (st_change_pct <= st_thresh_change))
   }
   
   # Randomized, recovery-aware trend validator --------------------------
-  has_valid_breaks_trend_rand <- FALSE
+  has_valid_breaks_st_trend <- FALSE
   trend_rand_p_value <- NA
   trend_slope_ts <- NA
   trend_slope_ts_pct <- NA
@@ -1077,7 +1078,7 @@ ltm_bfast01_detect_breaks <- function(
       min_prop_below     = trend_min_prop_below,
       avg_deficit_thresh = trend_avg_deficit_thresh
     )
-    has_valid_breaks_trend_rand <- trv$has_valid_breaks_trend_rand
+    has_valid_breaks_st_trend <- trv$has_valid_breaks_st_trend
     trend_rand_p_value          <- trv$trend_rand_p_value
     trend_slope_ts              <- trv$trend_slope_ts
     trend_slope_ts_pct          <- trv$trend_slope_ts_pct
@@ -1094,7 +1095,7 @@ ltm_bfast01_detect_breaks <- function(
   out <- list(method = "bfast01",
               data_type = ts_name,
               has_breaks = TRUE,
-              has_valid_breaks = isTRUE(orig_valid),
+              has_valid_breaks_lt_med = isTRUE(lt_med_valid),
               break_magn = break_magn,
               breaks_indices = brk,
               breaks_dates = break_date,
@@ -1103,14 +1104,14 @@ ltm_bfast01_detect_breaks <- function(
               season_used = season_used,
               
               # short-term
-              has_valid_breaks_st = isTRUE(st_valid),
+              has_valid_breaks_st_med = isTRUE(st_med_valid),
               st_change_pct = st_change_pct,
               st_pre = st_pre,
               st_post = st_post,
               st_window_used = st_used,
               
-              # randomized trend (new)
-              has_valid_breaks_trend_rand = isTRUE(has_valid_breaks_trend_rand),
+              # short-term trend validator
+              has_valid_breaks_st_trend = isTRUE(has_valid_breaks_st_trend),
               trend_rand_p_value = trend_rand_p_value,
               trend_slope_ts = trend_slope_ts,
               trend_slope_ts_pct = trend_slope_ts_pct,
@@ -1131,22 +1132,45 @@ ltm_bfast01_detect_breaks <- function(
 
 
 
-mcpSummary <- function (object, width = 0.95, digits = 2, 
-                        prior = FALSE, ...) {
-  fit = object
-  mcp:::assert_mcpfit(fit)
-  mcp:::assert_numeric(width, lower = 0, upper = 1)
-  mcp:::assert_integer(digits, lower = 0)
-  mcp:::assert_logical(prior)
-  mcp:::assert_ellipsis(...)
-  samples = mcp:::mcmclist_samples(fit, prior = prior, error = FALSE)
-  
-  if (!is.null(samples)) {
-    result = mcp:::get_summary(fit, width, varying = FALSE, prior = prior)
-    return(result)
-  } else {
-    return(NULL)
+mcpSummary <- function(object, width = 0.95, digits = 2,
+                       prior = FALSE, ...) {
+  fit <- object
+
+  if (!mcp::is.mcpfit(fit)) {
+    stop("'object' must be an 'mcpfit' object.", call. = FALSE)
   }
+  if (!is.numeric(width) || length(width) != 1L || is.na(width) ||
+      width < 0 || width > 1) {
+    stop("'width' must be a single numeric value between 0 and 1.", call. = FALSE)
+  }
+  if (!is.numeric(digits) || length(digits) != 1L || is.na(digits) ||
+      digits < 0 || digits != as.integer(digits)) {
+    stop("'digits' must be a single non-negative integer.", call. = FALSE)
+  }
+  if (!is.logical(prior) || length(prior) != 1L || is.na(prior)) {
+    stop("'prior' must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  ignored_args <- list(...)
+  if (length(ignored_args) > 0L) {
+    arg_names <- names(ignored_args)
+    if (is.null(arg_names) || any(!nzchar(arg_names))) {
+      arg_names <- rep("<unnamed>", length(ignored_args))
+    }
+    stop("Unused arguments: ", paste(arg_names, collapse = ", "), call. = FALSE)
+  }
+
+  summary_method <- utils::getS3method("summary", "mcpfit")
+  summary_result <- utils::capture.output(
+    result <- summary_method(
+      fit,
+      width = width,
+      digits = digits,
+      prior = prior
+    )
+  )
+  invisible(summary_result)
+  result
 }
 
 diagnose_uncertainty <- function(df,
@@ -1181,7 +1205,7 @@ diagnose_uncertainty <- function(df,
   )
 }
 
-# --- MCP wrapper with randomized trend validator -------------------------
+# --- MCP wrapper with short-term trend validator -------------------------
 ltm_mcp_detect_breaks <- function(spidf,
                                   ts_name = "spi",
                                   season_adj = TRUE,
@@ -1286,7 +1310,7 @@ ltm_mcp_detect_breaks <- function(spidf,
     out <- list(method = "mcp",
                 data_type = ts_name,
                 has_breaks = FALSE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn = NA,
                 breaks_indices = NA,
                 breaks_dates = NA,
@@ -1295,14 +1319,14 @@ ltm_mcp_detect_breaks <- function(spidf,
                 season_used = season_used,
                 
                 # short-term
-                has_valid_breaks_st = FALSE,
+                has_valid_breaks_st_med = FALSE,
                 st_change_pct = NA,
                 st_pre = NA,
                 st_post = NA,
                 st_window_used = if (is.null(st_window)) NA else as.integer(st_window),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -1330,7 +1354,7 @@ ltm_mcp_detect_breaks <- function(spidf,
     out <- list(method = "mcp",
                 data_type = ts_name,
                 has_breaks = TRUE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn = NA,
                 breaks_indices = brk,
                 breaks_dates = NA,
@@ -1339,14 +1363,14 @@ ltm_mcp_detect_breaks <- function(spidf,
                 season_used = season_used,
                 
                 # short-term
-                has_valid_breaks_st = FALSE,
+                has_valid_breaks_st_med = FALSE,
                 st_change_pct = NA,
                 st_pre = NA,
                 st_post = NA,
                 st_window_used = if (is.null(st_window)) NA else as.integer(st_window),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -1375,11 +1399,11 @@ ltm_mcp_detect_breaks <- function(spidf,
   post_break <- pars[3, 2]
   break_magn <- pct_change(post_break, pre_break)
   
-  orig_valid <- isTRUE(break_date >= thresh_date) &&
+  lt_med_valid <- isTRUE(break_date >= thresh_date) &&
     isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
   
   # Short-term validator ---------------------------------------------------
-  st_valid <- FALSE
+  st_med_valid <- FALSE
   st_change_pct <- st_pre <- st_post <- NA
   st_used <- if (is.null(st_window)) NA else as.integer(st_window)
   
@@ -1389,12 +1413,12 @@ ltm_mcp_detect_breaks <- function(spidf,
     st_pre  <- suppressWarnings(st_fun(ysa[pre_rng_st],  na.rm = TRUE))
     st_post <- suppressWarnings(st_fun(ysa[post_rng_st], na.rm = TRUE))
     st_change_pct <- pct_change(st_post, st_pre)
-    st_valid <- isTRUE(break_date >= thresh_date) &&
+    st_med_valid <- isTRUE(break_date >= thresh_date) &&
       isTRUE(is.finite(st_change_pct) && (st_change_pct <= st_thresh_change))
   }
   
   # Randomized, recovery-aware trend validator ----------------------------
-  has_valid_breaks_trend_rand <- FALSE
+  has_valid_breaks_st_trend <- FALSE
   trend_rand_p_value <- NA
   trend_slope_ts <- NA
   trend_slope_ts_pct <- NA
@@ -1420,7 +1444,7 @@ ltm_mcp_detect_breaks <- function(spidf,
       min_prop_below     = trend_min_prop_below,
       avg_deficit_thresh = trend_avg_deficit_thresh
     )
-    has_valid_breaks_trend_rand <- trv$has_valid_breaks_trend_rand
+    has_valid_breaks_st_trend <- trv$has_valid_breaks_st_trend
     trend_rand_p_value          <- trv$trend_rand_p_value
     trend_slope_ts              <- trv$trend_slope_ts
     trend_slope_ts_pct          <- trv$trend_slope_ts_pct
@@ -1437,7 +1461,7 @@ ltm_mcp_detect_breaks <- function(spidf,
   out <- list(method = "mcp",
               data_type = ts_name,
               has_breaks = TRUE,
-              has_valid_breaks = isTRUE(orig_valid),
+              has_valid_breaks_lt_med = isTRUE(lt_med_valid),
               break_magn = break_magn,
               breaks_indices = brk,
               breaks_dates = break_date,
@@ -1446,14 +1470,14 @@ ltm_mcp_detect_breaks <- function(spidf,
               season_used = season_used,
               
               # short-term
-              has_valid_breaks_st = isTRUE(st_valid),
+              has_valid_breaks_st_med = isTRUE(st_med_valid),
               st_change_pct = st_change_pct,
               st_pre = st_pre,
               st_post = st_post,
               st_window_used = st_used,
               
-              # randomized trend (new)
-              has_valid_breaks_trend_rand = isTRUE(has_valid_breaks_trend_rand),
+              # short-term trend validator
+              has_valid_breaks_st_trend = isTRUE(has_valid_breaks_st_trend),
               trend_rand_p_value = trend_rand_p_value,
               trend_slope_ts = trend_slope_ts,
               trend_slope_ts_pct = trend_slope_ts_pct,
@@ -1523,7 +1547,7 @@ ltm_strucchange_detect_breaks <- function(
       method           = "stc",
       data_type        = ts_name,
       has_breaks       = FALSE,
-      has_valid_breaks = FALSE,
+      has_valid_breaks_lt_med = FALSE,
       break_magn       = NA,
       breaks_indices   = NA,
       breaks_dates     = NA,
@@ -1532,14 +1556,14 @@ ltm_strucchange_detect_breaks <- function(
       season_used      = FALSE,
       
       # short-term
-      has_valid_breaks_st   = FALSE,
+      has_valid_breaks_st_med   = FALSE,
       st_change_pct         = NA,
       st_pre                = NA,
       st_post               = NA,
       st_window_used        = if (is.null(st_window)) NA else as.integer(st_window),
       
-      # randomized trend (new)
-      has_valid_breaks_trend_rand = FALSE,
+      # short-term trend validator
+      has_valid_breaks_st_trend = FALSE,
       trend_rand_p_value = NA,
       trend_slope_ts = NA,
       trend_slope_ts_pct = NA,
@@ -1579,7 +1603,7 @@ ltm_strucchange_detect_breaks <- function(
       method           = "stc",
       data_type        = ts_name,
       has_breaks       = FALSE,
-      has_valid_breaks = FALSE,
+      has_valid_breaks_lt_med = FALSE,
       break_magn       = NA,
       breaks_indices   = NA,
       breaks_dates     = NA,
@@ -1588,14 +1612,14 @@ ltm_strucchange_detect_breaks <- function(
       season_used      = season_used,
       
       # short-term
-      has_valid_breaks_st   = FALSE,
+      has_valid_breaks_st_med   = FALSE,
       st_change_pct         = NA,
       st_pre                = NA,
       st_post               = NA,
       st_window_used        = if (is.null(st_window)) NA else as.integer(st_window),
       
-      # randomized trend (new)
-      has_valid_breaks_trend_rand = FALSE,
+      # short-term trend validator
+      has_valid_breaks_st_trend = FALSE,
       trend_rand_p_value = NA,
       trend_slope_ts = NA,
       trend_slope_ts_pct = NA,
@@ -1621,7 +1645,7 @@ ltm_strucchange_detect_breaks <- function(
       method           = "stc",
       data_type        = ts_name,
       has_breaks       = TRUE,
-      has_valid_breaks = FALSE,
+      has_valid_breaks_lt_med = FALSE,
       break_magn       = NA,
       breaks_indices   = brk,
       breaks_dates     = NA,
@@ -1630,14 +1654,14 @@ ltm_strucchange_detect_breaks <- function(
       season_used      = season_used,
       
       # short-term
-      has_valid_breaks_st   = FALSE,
+      has_valid_breaks_st_med   = FALSE,
       st_change_pct         = NA,
       st_pre                = NA,
       st_post               = NA,
       st_window_used        = if (is.null(st_window)) NA else as.integer(st_window),
       
-      # randomized trend (new)
-      has_valid_breaks_trend_rand = FALSE,
+      # short-term trend validator
+      has_valid_breaks_st_trend = FALSE,
       trend_rand_p_value = NA,
       trend_slope_ts = NA,
       trend_slope_ts_pct = NA,
@@ -1673,11 +1697,11 @@ ltm_strucchange_detect_breaks <- function(
   val_post   <- suppressWarnings(thresh_fun(post_vals, na.rm = TRUE))
   break_magn <- pct_change(val_post, val_pre)
   
-  orig_valid <- isTRUE(break_date >= thresh_date) &&
+  lt_med_valid <- isTRUE(break_date >= thresh_date) &&
     isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
   
   # short-term validator ---------------------------------------------------
-  st_valid <- FALSE
+  st_med_valid <- FALSE
   st_change_pct <- st_pre <- st_post <- NA
   st_used <- if (is.null(st_window)) NA else as.integer(st_window)
   
@@ -1687,12 +1711,12 @@ ltm_strucchange_detect_breaks <- function(
     st_pre  <- suppressWarnings(st_fun(ysa[pre_rng_st],  na.rm = TRUE))
     st_post <- suppressWarnings(st_fun(ysa[post_rng_st], na.rm = TRUE))
     st_change_pct <- pct_change(st_post, st_pre)
-    st_valid <- isTRUE(break_date >= thresh_date) &&
+    st_med_valid <- isTRUE(break_date >= thresh_date) &&
       isTRUE(is.finite(st_change_pct) && (st_change_pct <= st_thresh_change))
   }
   
   # randomized, recovery-aware trend validator ----------------------------
-  has_valid_breaks_trend_rand <- FALSE
+  has_valid_breaks_st_trend <- FALSE
   trend_rand_p_value <- NA
   trend_slope_ts <- NA
   trend_slope_ts_pct <- NA
@@ -1718,7 +1742,7 @@ ltm_strucchange_detect_breaks <- function(
       min_prop_below     = trend_min_prop_below,
       avg_deficit_thresh = trend_avg_deficit_thresh
     )
-    has_valid_breaks_trend_rand <- trv$has_valid_breaks_trend_rand
+    has_valid_breaks_st_trend <- trv$has_valid_breaks_st_trend
     trend_rand_p_value          <- trv$trend_rand_p_value
     trend_slope_ts              <- trv$trend_slope_ts
     trend_slope_ts_pct          <- trv$trend_slope_ts_pct
@@ -1736,7 +1760,7 @@ ltm_strucchange_detect_breaks <- function(
     method           = "stc",
     data_type        = ts_name,
     has_breaks       = TRUE,
-    has_valid_breaks = isTRUE(orig_valid),
+    has_valid_breaks_lt_med = isTRUE(lt_med_valid),
     break_magn       = break_magn,
     breaks_indices   = brk,
     breaks_dates     = break_date,
@@ -1745,14 +1769,14 @@ ltm_strucchange_detect_breaks <- function(
     season_used      = season_used,
     
     # short-term
-    has_valid_breaks_st   = isTRUE(st_valid),
+    has_valid_breaks_st_med   = isTRUE(st_med_valid),
     st_change_pct         = st_change_pct,
     st_pre                = st_pre,
     st_post               = st_post,
     st_window_used        = st_used,
     
-    # randomized trend (new)
-    has_valid_breaks_trend_rand = isTRUE(has_valid_breaks_trend_rand),
+    # short-term trend validator
+    has_valid_breaks_st_trend = isTRUE(has_valid_breaks_st_trend),
     trend_rand_p_value = trend_rand_p_value,
     trend_slope_ts = trend_slope_ts,
     trend_slope_ts_pct = trend_slope_ts_pct,
@@ -1815,7 +1839,7 @@ ltm_wbs_detect_breaks <- function(spidf,
     out <- list(method = "wbs",
                 data_type = ts_name,
                 has_breaks = FALSE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn = NA,
                 breaks_indices = NA,
                 breaks_dates = NA,
@@ -1824,14 +1848,14 @@ ltm_wbs_detect_breaks <- function(spidf,
                 season_used = FALSE,
                 
                 # short-term
-                has_valid_breaks_st = FALSE,
+                has_valid_breaks_st_med = FALSE,
                 st_change_pct = NA,
                 st_pre = NA,
                 st_post = NA,
                 st_window_used = if (is.null(st_window)) NA else as.integer(st_window),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -1870,7 +1894,7 @@ ltm_wbs_detect_breaks <- function(spidf,
     out <- list(method = "wbs",
                 data_type = ts_name,
                 has_breaks = FALSE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn = NA,
                 breaks_indices = NA,
                 breaks_dates = NA,
@@ -1879,14 +1903,14 @@ ltm_wbs_detect_breaks <- function(spidf,
                 season_used = season_used,
                 
                 # short-term
-                has_valid_breaks_st = FALSE,
+                has_valid_breaks_st_med = FALSE,
                 st_change_pct = NA,
                 st_pre = NA,
                 st_post = NA,
                 st_window_used = if (is.null(st_window)) NA else as.integer(st_window),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -1909,7 +1933,7 @@ ltm_wbs_detect_breaks <- function(spidf,
     out <- list(method = "wbs",
                 data_type = ts_name,
                 has_breaks = FALSE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn = NA,
                 breaks_indices = NA,
                 breaks_dates = NA,
@@ -1918,14 +1942,14 @@ ltm_wbs_detect_breaks <- function(spidf,
                 season_used = season_used,
                 
                 # short-term
-                has_valid_breaks_st = FALSE,
+                has_valid_breaks_st_med = FALSE,
                 st_change_pct = NA,
                 st_pre = NA,
                 st_post = NA,
                 st_window_used = if (is.null(st_window)) NA else as.integer(st_window),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -1948,7 +1972,7 @@ ltm_wbs_detect_breaks <- function(spidf,
     out <- list(method = "wbs",
                 data_type = ts_name,
                 has_breaks = TRUE,
-                has_valid_breaks = FALSE,
+                has_valid_breaks_lt_med = FALSE,
                 break_magn = NA,
                 breaks_indices = brk,
                 breaks_dates = NA,
@@ -1957,14 +1981,14 @@ ltm_wbs_detect_breaks <- function(spidf,
                 season_used = season_used,
                 
                 # short-term
-                has_valid_breaks_st = FALSE,
+                has_valid_breaks_st_med = FALSE,
                 st_change_pct = NA,
                 st_pre = NA,
                 st_post = NA,
                 st_window_used = if (is.null(st_window)) NA else as.integer(st_window),
                 
-                # randomized trend (new)
-                has_valid_breaks_trend_rand = FALSE,
+                # short-term trend validator
+                has_valid_breaks_st_trend = FALSE,
                 trend_rand_p_value = NA,
                 trend_slope_ts = NA,
                 trend_slope_ts_pct = NA,
@@ -1999,11 +2023,11 @@ ltm_wbs_detect_breaks <- function(spidf,
   val_post   <- suppressWarnings(thresh_fun(post_vals, na.rm = TRUE))
   break_magn <- pct_change(val_post, val_pre)
   
-  orig_valid <- isTRUE(break_date >= thresh_date) &&
+  lt_med_valid <- isTRUE(break_date >= thresh_date) &&
     isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
   
   # short-term validator ---------------------------------------------------
-  st_valid <- FALSE
+  st_med_valid <- FALSE
   st_change_pct <- st_pre <- st_post <- NA
   st_used <- if (is.null(st_window)) NA else as.integer(st_window)
   
@@ -2013,12 +2037,12 @@ ltm_wbs_detect_breaks <- function(spidf,
     st_pre  <- suppressWarnings(st_fun(ysa[pre_rng_st],  na.rm = TRUE))
     st_post <- suppressWarnings(st_fun(ysa[post_rng_st], na.rm = TRUE))
     st_change_pct <- pct_change(st_post, st_pre)
-    st_valid <- isTRUE(break_date >= thresh_date) &&
+    st_med_valid <- isTRUE(break_date >= thresh_date) &&
       isTRUE(is.finite(st_change_pct) && (st_change_pct <= st_thresh_change))
   }
   
   # randomized, recovery-aware trend validator ----------------------------
-  has_valid_breaks_trend_rand <- FALSE
+  has_valid_breaks_st_trend <- FALSE
   trend_rand_p_value <- NA
   trend_slope_ts <- NA
   trend_slope_ts_pct <- NA
@@ -2044,7 +2068,7 @@ ltm_wbs_detect_breaks <- function(spidf,
       min_prop_below     = trend_min_prop_below,
       avg_deficit_thresh = trend_avg_deficit_thresh
     )
-    has_valid_breaks_trend_rand <- trv$has_valid_breaks_trend_rand
+    has_valid_breaks_st_trend <- trv$has_valid_breaks_st_trend
     trend_rand_p_value          <- trv$trend_rand_p_value
     trend_slope_ts              <- trv$trend_slope_ts
     trend_slope_ts_pct          <- trv$trend_slope_ts_pct
@@ -2061,7 +2085,7 @@ ltm_wbs_detect_breaks <- function(spidf,
   out <- list(method = "wbs",
               data_type = ts_name,
               has_breaks = TRUE,
-              has_valid_breaks = isTRUE(orig_valid),
+              has_valid_breaks_lt_med = isTRUE(lt_med_valid),
               break_magn = break_magn,
               breaks_indices = brk,
               breaks_dates = break_date,
@@ -2070,14 +2094,14 @@ ltm_wbs_detect_breaks <- function(spidf,
               season_used = season_used,
               
               # short-term
-              has_valid_breaks_st = isTRUE(st_valid),
+              has_valid_breaks_st_med = isTRUE(st_med_valid),
               st_change_pct = st_change_pct,
               st_pre = st_pre,
               st_post = st_post,
               st_window_used = st_used,
               
-              # randomized trend (new)
-              has_valid_breaks_trend_rand = isTRUE(has_valid_breaks_trend_rand),
+              # short-term trend validator
+              has_valid_breaks_st_trend = isTRUE(has_valid_breaks_st_trend),
               trend_rand_p_value = trend_rand_p_value,
               trend_slope_ts = trend_slope_ts,
               trend_slope_ts_pct = trend_slope_ts_pct,

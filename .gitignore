@@ -4,6 +4,7 @@
 .Ruserdata
 .pkgbuild/
 .tmplib/
+.Rd2pdf*/
 *.Rcheck/
 ..Rcheck/
 ltm_cache/

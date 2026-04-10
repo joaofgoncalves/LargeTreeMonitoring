@@ -1,10 +1,10 @@
 Package: LargeTreeMonitoring
 Type: Package
-Title: Monitor large trees using Sentinel-2 time series and break point detection
+Title: Monitor Large Trees using Sentinel-2 Time Series and Break Point Detection
 Version: 0.1.0
 Authors@R: c(
     person(
-      "João", "Gonçalves",
+      "Joao", "Goncalves",
       email = "joao.goncalves@cibio.up.pt",
       role = c("aut", "cre")
     )

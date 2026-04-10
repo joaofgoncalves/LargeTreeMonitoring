@@ -103,6 +103,14 @@ ltm_has_path_value <- function(path) {
   !is.null(path) && length(path) == 1L && !is.na(path) && nzchar(path)
 }
 
+ltm_selected_tree_id <- function(location_id) {
+  if (!ltm_has_path_value(location_id) || identical(location_id, "---")) {
+    return(NULL)
+  }
+
+  as.character(location_id)
+}
+
 ltm_is_absolute_path <- function(path) {
   grepl("^(?:[A-Za-z]:|/|\\\\\\\\)", path)
 }
@@ -670,179 +678,269 @@ ltm_app <- function(config_path = NULL) {
       })
 
       shinyjs::delay(1000, {
-        if (ltm_check_gee_status() != "CONNECTED") {
-          output$status <- renderText("Initializing GEE connection...")
-          #ltm_start_gee(input$user_name)
-          ltm_start_gee(params()$gee$gee_username)
-
-        }
-
-        date_error <- FALSE
-        # Validate dates for Sentinel L1C / L2A
-        if ((input$proc_level %in% c("L1","L1C")) && (input$start_date < as.Date("2015-01-01"))) {
-          shinyalert::shinyalert(
-            title = "Error in start date",
-            text = "The start date cannot be earlier than 2015-01-01 for L1/L1C Sentinel-2 data",
-            type = "error"
-          )
-          output$loading <- renderUI({ NULL })
-          date_error <- TRUE
-        }
-        if ((input$proc_level %in% c("L2","L2A")) && (input$start_date < as.Date("2017-01-01"))) {
-          shinyalert::shinyalert(
-            title = "Error in start date",
-            text = "The start date cannot be earlier than 2017-01-01 for L2/L2A Sentinel-2 data",
-            type = "error"
-          )
-          output$loading <- renderUI({ NULL })
-          date_error <- TRUE
-        }
-
-        if(!date_error) {
-
-          # Use either chosen location or manual lat/lon
-          if (input$location_id != "---") {
-            tree_info <- tree_state()
-            tree_list <- tree_info$data
-
-            if (is.null(tree_list)) {
-              shinyalert::shinyalert(
-                title = "Location list unavailable",
-                text = "The configured tree list could not be loaded.",
-                type = "error"
-              )
-              output$loading <- renderUI({ NULL })
-              return(NULL)
-            }
-
-            loc_row <- tree_list[
-              as.character(tree_list[[tree_info$tree_ids_col]]) == input$location_id,
-              ,
-              drop = FALSE
-            ]
-
-            if (nrow(loc_row) == 1) {
-              lat <- loc_row[[tree_info$lat_col]][1]
-              lon <- loc_row[[tree_info$lon_col]][1]
-
-            } else {
-              #showNotification("Selected location ID not found in list.", type = "error")
-
-              shinyalert::shinyalert(
-                title = "Error in start date",
-                text = "Selected location ID not found in list",
-                type = "error"
-              )
-
-              return(NULL)
-            }
-          } else {
-            lat <- input$latitude
-            lon <- input$longitude
+        tryCatch({
+          date_error <- FALSE
+          # Validate dates for Sentinel L1C / L2A
+          if ((input$proc_level %in% c("L1","L1C")) && (input$start_date < as.Date("2015-01-01"))) {
+            shinyalert::shinyalert(
+              title = "Error in start date",
+              text = "The start date cannot be earlier than 2015-01-01 for L1/L1C Sentinel-2 data",
+              type = "error"
+            )
+            output$loading <- renderUI({ NULL })
+            date_error <- TRUE
+          }
+          if ((input$proc_level %in% c("L2","L2A")) && (input$start_date < as.Date("2017-01-01"))) {
+            shinyalert::shinyalert(
+              title = "Error in start date",
+              text = "The start date cannot be earlier than 2017-01-01 for L2/L2A Sentinel-2 data",
+              type = "error"
+            )
+            output$loading <- renderUI({ NULL })
+            date_error <- TRUE
           }
 
-          # Store the lat/lon used (for the map, etc.)
-          selectedCoord(list(lat = lat, lon = lon))
+          if(!date_error) {
+            selected_tree_id <- ltm_selected_tree_id(input$location_id)
+            requested_buffer_radius <- NULL
+            cache_status_detail <- NULL
+            location_ready <- TRUE
+            cache_hit <- FALSE
 
+            # Use either chosen location or manual lat/lon
+            if (!is.null(selected_tree_id)) {
+              tree_info <- tree_state()
+              tree_list <- tree_info$data
 
-          ## Check if it is necessary to clean break analysis outputs if a
-          # new set of coordinates have appeared including the nulling the
-          ## breaks in the plot and the tables in the bottom part.
-          ###########################################################################
-
-          last_loc <- ltm_read_location()
-          current_loc <- paste(round(lat, 6), round(lon, 6), sep = ",")
-
-          # If location changed, reset break results
-          if (is.null(last_loc) || (!identical(current_loc, last_loc))) {
-            # Clear break analysis objects & outputs
-            breakResults(NULL)
-            output$break_analysis_status <- renderText("")
-          }
-
-          # 3) Update the stored location
-          ltm_store_location(lat, lon)
-
-          ###########################################################################
-
-          cached_file <- ltm_check_cache(
-            lat, lon,
-            input$start_date, input$end_date,
-            input$spi, input$proc_level
-          )
-
-          cached_data <- NULL
-          if (!is.null(cached_file)) {
-            cached_data <- tryCatch(
-              readRDS(cached_file),
-              error = function(error) {
-                warning(
-                  "Could not read cached file '",
-                  cached_file,
-                  "': ",
-                  error$message
+              if (is.null(tree_list)) {
+                shinyalert::shinyalert(
+                  title = "Location list unavailable",
+                  text = "The configured tree list could not be loaded.",
+                  type = "error"
                 )
-                NULL
+                output$loading <- renderUI({ NULL })
+                location_ready <- FALSE
               }
-            )
 
-            if (!is.null(cached_data)) {
-              output$status <- renderText(paste("[OK] Data loaded from cache:", cached_file))
-              spidf_data(cached_data)
-              output$loading <- renderUI({NULL})
-              return(NULL)
+              if (isTRUE(location_ready)) {
+                loc_row <- tree_list[
+                  as.character(tree_list[[tree_info$tree_ids_col]]) == selected_tree_id,
+                  ,
+                  drop = FALSE
+                ]
+
+                if (nrow(loc_row) == 1) {
+                  lat <- loc_row[[tree_info$lat_col]][1]
+                  lon <- loc_row[[tree_info$lon_col]][1]
+
+                } else {
+                  shinyalert::shinyalert(
+                    title = "Error in start date",
+                    text = "Selected location ID not found in list",
+                    type = "error"
+                  )
+
+                  output$loading <- renderUI({ NULL })
+                  location_ready <- FALSE
+                }
+              }
+            } else {
+              lat <- input$latitude
+              lon <- input$longitude
             }
-          }
 
-          shinyjs::delay(1000, {
-            df <- ltm_s2_get_data_point(
-              lat        = lat,
-              lon        = lon,
-              start_date = format(input$start_date, "%Y-%m-%d"),
-              end_date   = format(input$end_date,   "%Y-%m-%d"),
-              spi        = input$spi,
-              proc_level = input$proc_level,
-              tree_id = ifelse(input$location_id != "" && input$location_id != "---",
-                               input$location_id, NULL)
-            )
+            if (isTRUE(location_ready)) {
+              # Store the lat/lon used (for the map, etc.)
+              selectedCoord(list(lat = lat, lon = lon))
 
-            file_name <- tryCatch(
-              ltm_save_to_cache(
-                df,
-                metadata_tags = list(
-                  lat = lat,
-                  lon = lon,
-                  start_date = input$start_date,
-                  end_date = input$end_date,
-                  spi = input$spi,
-                  proc_level = input$proc_level,
-                  tree_id = ifelse(
-                    input$location_id != "" && input$location_id != "---",
-                    input$location_id,
-                    NULL
+
+              ## Check if it is necessary to clean break analysis outputs if a
+              # new set of coordinates have appeared including the nulling the
+              ## breaks in the plot and the tables in the bottom part.
+              ###########################################################################
+
+              last_loc <- ltm_read_location()
+              current_loc <- paste(round(lat, 6), round(lon, 6), sep = ",")
+
+              # If location changed, reset break results
+              if (is.null(last_loc) || (!identical(current_loc, last_loc))) {
+                # Clear break analysis objects & outputs
+                breakResults(NULL)
+                output$break_analysis_status <- renderText("")
+              }
+
+              # 3) Update the stored location
+              ltm_store_location(lat, lon)
+
+              ###########################################################################
+
+              cached_file <- ltm_check_cache(
+                lat, lon,
+                input$start_date, input$end_date,
+                input$spi, input$proc_level,
+                tree_id = selected_tree_id,
+                buffer_radius_m = requested_buffer_radius
+              )
+
+              cached_data <- NULL
+              if (!is.null(cached_file)) {
+                cached_data <- tryCatch(
+                  ltm_read_cached_spidf(
+                    cached_file,
+                    metadata_tags = list(
+                      lat = lat,
+                      lon = lon,
+                      start_date = input$start_date,
+                      end_date = input$end_date,
+                      spi = input$spi,
+                      proc_level = input$proc_level,
+                      tree_id = selected_tree_id,
+                      buffer_radius_m = requested_buffer_radius
+                    )
                   ),
-                  buffer_radius_m = NULL
+                  error = function(error) {
+                    warning(
+                      "Could not read cached file '",
+                      cached_file,
+                      "': ",
+                      error$message
+                    )
+                    cache_status_detail <<- paste(
+                      "Cached file could not be used:",
+                      basename(cached_file),
+                      "-",
+                      error$message
+                    )
+                    NULL
+                  }
                 )
-              ),
-              error = function(error) {
-                warning("Could not write cache file: ", error$message)
-                NULL
+
+                if (!is.null(cached_data)) {
+                  tryCatch(
+                    ltm_save_to_cache(
+                      cached_data,
+                      metadata_tags = list(
+                        lat = lat,
+                        lon = lon,
+                        start_date = input$start_date,
+                        end_date = input$end_date,
+                        spi = input$spi,
+                        proc_level = input$proc_level,
+                        tree_id = selected_tree_id,
+                        buffer_radius_m = requested_buffer_radius
+                      )
+                    ),
+                    error = function(error) {
+                      warning("Could not refresh normalized cache file: ", error$message)
+                      NULL
+                    }
+                  )
+
+                  output$status <- renderText(paste("[OK] Data loaded from cache:", cached_file))
+                  spidf_data(cached_data)
+                  output$loading <- renderUI({NULL})
+                  cache_hit <- TRUE
+                }
               }
-            )
 
-            if (is.null(file_name)) {
-              output$status <- renderText(
-                "[OK] Data fetched from GEE, but the cache file could not be written."
-              )
-            } else {
-              output$status <- renderText(paste("[OK] Data fetched and cached at:", file_name))
+              if (!isTRUE(cache_hit)) {
+                if (ltm_check_gee_status() != "CONNECTED") {
+                  output$status <- renderText("Initializing GEE connection...")
+                  if (!isTRUE(ltm_start_gee(params()$gee$gee_username))) {
+                    stop(
+                      paste(
+                        c(
+                          "Google Earth Engine could not be initialized and no usable cache file was found.",
+                          cache_status_detail
+                        ),
+                        collapse = " "
+                      ),
+                      call. = FALSE
+                    )
+                  }
+                }
+
+                shinyjs::delay(1000, {
+                  tryCatch({
+                    df <- ltm_s2_get_data_point(
+                      lat        = lat,
+                      lon        = lon,
+                      start_date = format(input$start_date, "%Y-%m-%d"),
+                      end_date   = format(input$end_date,   "%Y-%m-%d"),
+                      spi        = input$spi,
+                      proc_level = input$proc_level,
+                      tree_id = selected_tree_id
+                    )
+
+                    file_name <- tryCatch(
+                      ltm_save_to_cache(
+                        df,
+                        metadata_tags = list(
+                          lat = lat,
+                          lon = lon,
+                          start_date = input$start_date,
+                          end_date = input$end_date,
+                          spi = input$spi,
+                          proc_level = input$proc_level,
+                          tree_id = selected_tree_id,
+                          buffer_radius_m = requested_buffer_radius
+                        )
+                      ),
+                      error = function(error) {
+                        warning("Could not write cache file: ", error$message)
+                        NULL
+                      }
+                    )
+
+                    if (is.null(file_name)) {
+                      output$status <- renderText(
+                        paste(
+                          c(
+                            "[OK] Data fetched from GEE, but the cache file could not be written.",
+                            cache_status_detail
+                          ),
+                          collapse = " "
+                        )
+                      )
+                    } else {
+                      output$status <- renderText(
+                        paste(
+                          c(
+                            paste("[OK] Data fetched and cached at:", file_name),
+                            cache_status_detail
+                          ),
+                          collapse = " "
+                        )
+                      )
+                    }
+
+                    spidf_data(df)
+
+                    output$loading <- renderUI({NULL})
+                  }, error = function(error) {
+                    shinyalert::shinyalert(
+                      title = "Error fetching time series",
+                      text = error$message,
+                      type = "error"
+                    )
+                    output$status <- renderText(paste("[ERROR]", error$message))
+                    output$loading <- renderUI({NULL})
+                    NULL
+                  })
+                })
+              }
             }
-
-            spidf_data(df)
-
-            output$loading <- renderUI({NULL})
-          })
-        }
+          }
+        }, error = function(error) {
+          shinyalert::shinyalert(
+            title = "Error while loading time series",
+            text = error$message,
+            type = "error"
+          )
+          output$status <- renderText(paste("[ERROR]", error$message))
+          output$loading <- renderUI({ NULL })
+          NULL
+        })
       })
     })
 
@@ -1282,8 +1380,18 @@ ltm_app <- function(config_path = NULL) {
         df$break_date <- format(df$break_date, "%Y-%m-%d")
       }
 
-      # Remove columns
-      df <- df[, setdiff(names(df), c("method", "break_index")), drop = FALSE]
+      display_cols <- c(
+        "algorithm",
+        "run_id",
+        "data_type",
+        "has_breaks",
+        "has_valid_breaks_lt_med",
+        "has_valid_breaks_st_med",
+        "has_valid_breaks_st_trend",
+        "break_date",
+        "break_magn"
+      )
+      df <- df[, intersect(display_cols, names(df)), drop = FALSE]
 
       # Replace values for easier reading
       # Replace time series data names
@@ -1306,20 +1414,31 @@ ltm_app <- function(config_path = NULL) {
         )
       df$algorithm <- dplyr::recode(df$algorithm, !!!da_replacements)
 
-      # Replace boolean values
-      df$has_breaks <- ifelse(df$has_breaks, "Yes", "No")
-      df$has_valid_breaks <- ifelse(df$has_valid_breaks, "Yes", "No")
-
-      # Rename columns for easier reading
-      colnames(df) <- c(
-        "Algorithm",
-        "Run ID",
-        "Data type",
-        "Breaks found?",
-        "Valid breaks?",
-        "Break date",
-        "Break change"
+      bool_cols <- intersect(
+        c(
+          "has_breaks",
+          "has_valid_breaks_lt_med",
+          "has_valid_breaks_st_med",
+          "has_valid_breaks_st_trend"
+        ),
+        names(df)
       )
+      for (col_name in bool_cols) {
+        df[[col_name]] <- ifelse(df[[col_name]], "Yes", "No")
+      }
+
+      rename_map <- c(
+        algorithm = "Algorithm",
+        run_id = "Run ID",
+        data_type = "Data type",
+        has_breaks = "Breaks found?",
+        has_valid_breaks_lt_med = "Long-term median valid?",
+        has_valid_breaks_st_med = "Short-term median valid?",
+        has_valid_breaks_st_trend = "Short-term trend valid?",
+        break_date = "Break date",
+        break_magn = "Break change"
+      )
+      colnames(df) <- unname(rename_map[names(df)])
 
       df
     })
@@ -1358,7 +1477,7 @@ ltm_app <- function(config_path = NULL) {
 
       # 2) Call the function
 
-      if(any(df$has_valid_breaks == TRUE)){
+      if(any(df$has_valid_breaks_lt_med == TRUE)){
         plot_valid_breaks(df)
       }else{
         return(NULL)

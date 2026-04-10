@@ -1,4 +1,4 @@
-![](www/LTM_logo-small-v1.png)
+![](man/figures/LTM_logo-small-v1.png)
 
 # Large Tree Monitoring (LTM)
 
@@ -64,4 +64,4 @@ install.packages(c("rgee", "sf", "terra",
 
 LTM includes a Shiny application (LTM_shiny_app.R) that provides an interactive interface for users to visualize and analyze data without extensive coding.
 
-![](www/LTM_shiny_app.png)
+![](man/figures/LTM_shiny_app.png)

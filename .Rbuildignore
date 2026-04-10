@@ -2,6 +2,10 @@
 ^\.Rproj\.user$
 ^\.pkgbuild$
 ^\.tmplib$
+^\.Rd2pdf.*$
 ^\.{1,2}Rcheck$
 ^LargeTreeMonitoring\.Rcheck$
+^README\.md$
+^README\.html$
 ^ltm_cache$
+^www$

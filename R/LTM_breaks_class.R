@@ -2,11 +2,11 @@
 
 ltm_ts_breaks <- function(spidf_ts) {
 
-  
+
   if (!inherits(spidf_ts, "spidf")) {
     stop("Error: 'spidf_ts' must be of class 'spidf'.")
   }
-    
+
   structure(
     list(
       spidf_ts = spidf_ts,
@@ -18,11 +18,11 @@ ltm_ts_breaks <- function(spidf_ts) {
 
 
 ltm_add_runs <- function(ts_breaks_obj, ...) {
-  
+
   if (!inherits(ts_breaks_obj, "ts_breaks")) {
     stop("Error: 'ts_breaks_obj' must be of class 'ts_breaks'.")
   }
-  
+
   # safe getters
   get_slot <- function(obj, nm, default = NA) {
     val <- obj[[nm]]
@@ -32,39 +32,37 @@ ltm_add_runs <- function(ts_breaks_obj, ...) {
     val <- obj[[nm]]
     if (is.null(val)) as.Date(NA) else as.Date(val)
   }
-  
+
   run_objects <- list(...)
-  
+
   for (i in seq_along(run_objects)) {
-    
+
     run_object <- run_objects[[i]]
-    
+
     if (!inherits(run_object, "ts_breaks_run")) {
       stop("Error: each 'run_object' must be of class 'ts_breaks_run'.")
     }
-    
+
     algorithm_name <- get_slot(run_object, "method", NA_character_)
-    
+
     if (is.null(algorithm_name) || !nzchar(algorithm_name)) {
       stop("Error: each 'run_object' must have a non-empty 'method' field.")
     }
-    
+
     data_type <- get_slot(run_object, "data_type", NA_character_)
     if (!(data_type %in% VALID_DATA_TYPES)) {
       stop("Error: 'data_type' must be one of: ", paste(VALID_DATA_TYPES, collapse = ", "))
     }
-    
+
     if (!(algorithm_name %in% names(ts_breaks_obj$algorithms))) {
       ts_breaks_obj$algorithms[[algorithm_name]] <- list()
     }
-    
+
     new_run <- list(
       # core
       method           = algorithm_name,
       data_type        = data_type,
       has_breaks       = isTRUE(get_slot(run_object, "has_breaks", FALSE)),
-      has_valid_breaks = isTRUE(get_slot(run_object, "has_valid_breaks", FALSE)),
-      break_magn       = get_slot(run_object, "break_magn"),
       breaks_indices   = get_slot(run_object, "breaks_indices"),
       breaks_dates     = get_date(run_object, "breaks_dates"),
       output_object    = get_slot(run_object, "output_object"),
@@ -72,16 +70,20 @@ ltm_add_runs <- function(ts_breaks_obj, ...) {
       season_adj       = isTRUE(get_slot(run_object, "season_adj", FALSE)),
       season_used      = isTRUE(get_slot(run_object, "season_used", FALSE)),
       call             = get_slot(run_object, "call"),
-      
-      # short-term validator
-      has_valid_breaks_st = isTRUE(get_slot(run_object, "has_valid_breaks_st", FALSE)),
+
+      # Median long-term validator
+      has_valid_breaks_lt_med = isTRUE(get_slot(run_object, "has_valid_breaks_lt_med", FALSE)),
+      break_magn       = get_slot(run_object, "break_magn"),
+
+      # Median short-term validator
+      has_valid_breaks_st_med = isTRUE(get_slot(run_object, "has_valid_breaks_st_med", FALSE)),
       st_change_pct       = get_slot(run_object, "st_change_pct"),
       st_pre              = get_slot(run_object, "st_pre"),
       st_post             = get_slot(run_object, "st_post"),
       st_window_used      = get_slot(run_object, "st_window_used"),
-      
-      # randomized trend validator
-      has_valid_breaks_trend_rand = isTRUE(get_slot(run_object, "has_valid_breaks_trend_rand", FALSE)),
+
+      # Short-term randomized trend validator
+      has_valid_breaks_st_trend = isTRUE(get_slot(run_object, "has_valid_breaks_st_trend", FALSE)),
       trend_rand_p_value          = get_slot(run_object, "trend_rand_p_value"),
       trend_slope_ts              = get_slot(run_object, "trend_slope_ts"),
       trend_slope_ts_pct          = get_slot(run_object, "trend_slope_ts_pct"),
@@ -94,11 +96,11 @@ ltm_add_runs <- function(ts_breaks_obj, ...) {
       post_prop_below_baseline    = get_slot(run_object, "post_prop_below_baseline"),
       post_avg_deficit_pct        = get_slot(run_object, "post_avg_deficit_pct")
     )
-    
+
     run_id <- sprintf("run-%02d", length(ts_breaks_obj$algorithms[[algorithm_name]]) + 1L)
     ts_breaks_obj$algorithms[[algorithm_name]][[run_id]] <- new_run
   }
-  
+
   return(ts_breaks_obj)
 }
 
@@ -129,10 +131,11 @@ ltm_get_run_details <- function(ts_breaks_obj, algorithm_name, run_id) {
 
 
 # Generic print for a ts_breaks container (multiple algorithms and runs)
-# Shows long-term, short-term, and randomized trend validators (no legacy trend).
+# Shows long-term median, short-term median, and short-term trend validators.
+#' @export
 print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
   stopifnot(is.list(x))
-  
+
   # helpers
   yn <- function(z) if (isTRUE(z)) "Yes" else if (identical(z, FALSE)) "No" else "NA"
   num <- function(v) {
@@ -152,40 +155,40 @@ print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
     paste(paste(v[seq_len(k)], collapse = ", "), sprintf("... (+%d more)", length(v) - k))
   }
   has_slot <- function(obj, nm) !is.null(obj[[nm]])
-  
+
   # header
   cat("Time Series Break Detection Object (ts_breaks)\n")
   cat("====================================================\n")
   total_algs <- if (!is.null(x$algorithms)) length(x$algorithms) else 0L
   cat("Total algorithms:", total_algs, "\n\n")
-  
+
   if (total_algs == 0L) {
     cat("No algorithms added yet.\n")
     return(invisible(x))
   }
-  
+
   # iterate algorithms
   for (alg in names(x$algorithms)) {
     runs <- x$algorithms[[alg]]
     cat(sprintf("Algorithm: %s | runs: %d\n", alg, length(runs)))
     cat("----------------------------------------------------\n")
-    
+
     if (length(runs) == 0) {
       cat("  (no runs)\n\n")
       next
     }
-    
+
     # iterate runs
     for (run_name in names(runs)) {
       run <- runs[[run_name]]
-      
+
       # run header
       cat(sprintf("Run: %s\n", run_name))
       cat(sprintf("  method: %s | data_type: %s | breaks_detected: %s\n",
                   ifelse(is.null(run$method), "-", run$method),
                   ifelse(is.null(run$data_type), "-", run$data_type),
                   yn(run$has_breaks)))
-      
+
       # break summary
       cat("  Break summary:\n")
       if (isTRUE(run$has_breaks)) {
@@ -195,30 +198,30 @@ print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
       } else {
         cat("    no breaks identified\n")
       }
-      
+
       # validators
       cat("  Validators:\n")
-      
-      # Long-term
-      cat(sprintf("    Long-term valid: %s", yn(run$has_valid_breaks)))
+
+      # Long-term median
+      cat(sprintf("    Long-term median valid: %s", yn(run$has_valid_breaks_lt_med)))
       if (!is.null(run$break_magn)) cat(sprintf(" | change_percent: %s", num(run$break_magn)))
       cat("\n")
-      
-      # Short-term (if present)
-      if (has_slot(run, "has_valid_breaks_st") ||
+
+      # Short-term median (if present)
+      if (has_slot(run, "has_valid_breaks_st_med") ||
           has_slot(run, "st_change_pct") ||
           has_slot(run, "st_window_used")) {
-        cat(sprintf("    Short-term valid: %s", yn(run$has_valid_breaks_st)))
+        cat(sprintf("    Short-term median valid: %s", yn(run$has_valid_breaks_st_med)))
         if (has_slot(run, "st_window_used")) cat(sprintf(" | window_n: %s", as.character(run$st_window_used)))
         if (has_slot(run, "st_change_pct"))  cat(sprintf(" | change_percent: %s", num(run$st_change_pct)))
         cat("\n")
       } else {
-        cat("    Short-term valid: NA\n")
+        cat("    Short-term median valid: NA\n")
       }
-      
-      # Trend (randomized) only
-      if (has_slot(run, "has_valid_breaks_trend_rand")) {
-        cat(sprintf("    Trend valid (randomized): %s", yn(run$has_valid_breaks_trend_rand)))
+
+      # Short-term trend only
+      if (has_slot(run, "has_valid_breaks_st_trend")) {
+        cat(sprintf("    Short-term trend valid: %s", yn(run$has_valid_breaks_st_trend)))
         if (has_slot(run, "trend_rand_p_value"))     cat(sprintf(" | p_value: %s", num(run$trend_rand_p_value)))
         if (has_slot(run, "trend_slope_ts_pct"))     cat(sprintf(" | slope_percent_per_year: %s", num(run$trend_slope_ts_pct)))
         if (has_slot(run, "trend_window_used"))      cat(sprintf(" | window_n: %s", as.character(run$trend_window_used)))
@@ -226,7 +229,7 @@ print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
         # brief post-break indicators if available
         if (has_slot(run, "post_prop_below_baseline") || has_slot(run, "post_avg_deficit_pct") ||
             has_slot(run, "trend_rand_null_mean_pct") || has_slot(run, "trend_rand_effect_pct")) {
-          cat("      Trend stats:")
+          cat("      Short-term trend stats:")
           if (has_slot(run, "trend_rand_null_mean_pct"))
             cat(sprintf(" null_mean_percent=%s", num(run$trend_rand_null_mean_pct)))
           if (has_slot(run, "trend_rand_effect_pct"))
@@ -238,40 +241,41 @@ print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
           cat("\n")
         }
       } else {
-        cat("    Trend valid (randomized): NA\n")
+        cat("    Short-term trend valid: NA\n")
       }
-      
+
       cat("\n")
     }
     cat("\n")
   }
-  
+
   invisible(x)
 }
 
 
 # Convert a ts_breaks container into a flat data.frame (one row per run).
 # Assumes each run reports at most one "primary" break.
-as.data.frame.ts_breaks <- function(ts_breaks_obj, ...) {
-  
-  if (!inherits(ts_breaks_obj, "ts_breaks")) {
-    stop("Error: 'ts_breaks_obj' must be of class 'ts_breaks'.")
+#' @export
+as.data.frame.ts_breaks <- function(x, row.names = NULL, optional = FALSE, ...) {
+
+  if (!inherits(x, "ts_breaks")) {
+    stop("Error: 'x' must be of class 'ts_breaks'.")
   }
-  
+
   # Stable schema for downstream use
   col_order <- c(
     "algorithm", "run_id", "method", "data_type",
     "season_adj", "season_used",
     "has_breaks",
     "break_index", "break_date", "break_magn",
-    "has_valid_breaks",                         # long-term validator
-    "has_valid_breaks_st", "st_window_used", "st_change_pct", "st_pre", "st_post",
-    "has_valid_breaks_trend_rand", "trend_window_used", "trend_rand_B", "trend_rand_len",
+    "has_valid_breaks_lt_med",                         # long-term validator
+    "has_valid_breaks_st_med", "st_window_used", "st_change_pct", "st_pre", "st_post",
+    "has_valid_breaks_st_trend", "trend_window_used", "trend_rand_B", "trend_rand_len",
     "trend_rand_p_value", "trend_slope_ts", "trend_slope_ts_pct",
     "trend_rand_null_mean_pct", "trend_rand_null_sd_pct", "trend_rand_effect_pct",
     "post_prop_below_baseline", "post_avg_deficit_pct"
   )
-  
+
   # empty result with correct classes
   empty_df <- data.frame(
     algorithm = character(0),
@@ -284,13 +288,13 @@ as.data.frame.ts_breaks <- function(ts_breaks_obj, ...) {
     break_index = integer(0),
     break_date = as.Date(character(0)),
     break_magn = numeric(0),
-    has_valid_breaks = logical(0),
-    has_valid_breaks_st = logical(0),
+    has_valid_breaks_lt_med = logical(0),
+    has_valid_breaks_st_med = logical(0),
     st_window_used = integer(0),
     st_change_pct = numeric(0),
     st_pre = numeric(0),
     st_post = numeric(0),
-    has_valid_breaks_trend_rand = logical(0),
+    has_valid_breaks_st_trend = logical(0),
     trend_window_used = integer(0),
     trend_rand_B = integer(0),
     trend_rand_len = integer(0),
@@ -304,60 +308,60 @@ as.data.frame.ts_breaks <- function(ts_breaks_obj, ...) {
     post_avg_deficit_pct = numeric(0),
     stringsAsFactors = FALSE
   )
-  
-  algs <- ts_breaks_obj$algorithms
-  
+
+  algs <- x$algorithms
+
   if (is.null(algs) || length(algs) == 0) {
     return(empty_df[, col_order, drop = FALSE])
   }
-  
+
   rows <- vector("list", 0L)
-  
+
   for (alg_name in names(algs)) {
     runs <- algs[[alg_name]]
     if (is.null(runs) || length(runs) == 0) next
-    
+
     for (run_name in names(runs)) {
       run <- runs[[run_name]]
-      
+
       # simple safe getter
       gs <- function(nm, default = NA) {
         v <- run[[nm]]
         if (is.null(v)) default else v
       }
-      
+
       has_breaks <- isTRUE(gs("has_breaks", FALSE))
       idx <- if (has_breaks && length(gs("breaks_indices")) > 0) as.integer(gs("breaks_indices")[1]) else NA_integer_
       dte <- if (has_breaks && length(gs("breaks_dates")) > 0) as.Date(gs("breaks_dates")[1]) else as.Date(NA)
-      
+
       # ensure single numeric magnitude
       magn_raw <- gs("break_magn", NA_real_)
       magn <- suppressWarnings(as.numeric(if (length(magn_raw) > 0) magn_raw[1] else NA_real_))
-      
+
       row <- data.frame(
         algorithm  = as.character(alg_name),
         run_id     = as.character(run_name),
         method     = as.character(gs("method", NA_character_)),
         data_type  = as.character(gs("data_type", NA_character_)),
-        
+
         season_adj  = isTRUE(gs("season_adj", FALSE)),
         season_used = isTRUE(gs("season_used", FALSE)),
-        
+
         has_breaks  = has_breaks,
         break_index = idx,
         break_date  = dte,
         break_magn  = magn,
-        
+
         # validators
-        has_valid_breaks = isTRUE(gs("has_valid_breaks", FALSE)),
-        
-        has_valid_breaks_st = isTRUE(gs("has_valid_breaks_st", FALSE)),
+        has_valid_breaks_lt_med = isTRUE(gs("has_valid_breaks_lt_med", FALSE)),
+
+        has_valid_breaks_st_med = isTRUE(gs("has_valid_breaks_st_med", FALSE)),
         st_window_used      = suppressWarnings(as.integer(gs("st_window_used"))),
         st_change_pct       = suppressWarnings(as.numeric(gs("st_change_pct"))),
         st_pre              = suppressWarnings(as.numeric(gs("st_pre"))),
         st_post             = suppressWarnings(as.numeric(gs("st_post"))),
-        
-        has_valid_breaks_trend_rand = isTRUE(gs("has_valid_breaks_trend_rand", FALSE)),
+
+        has_valid_breaks_st_trend = isTRUE(gs("has_valid_breaks_st_trend", FALSE)),
         trend_window_used           = suppressWarnings(as.integer(gs("trend_window_used"))),
         trend_rand_B                = suppressWarnings(as.integer(gs("trend_rand_B"))),
         trend_rand_len              = suppressWarnings(as.integer(gs("trend_rand_len"))),
@@ -369,29 +373,29 @@ as.data.frame.ts_breaks <- function(ts_breaks_obj, ...) {
         trend_rand_effect_pct       = suppressWarnings(as.numeric(gs("trend_rand_effect_pct"))),
         post_prop_below_baseline    = suppressWarnings(as.numeric(gs("post_prop_below_baseline"))),
         post_avg_deficit_pct        = suppressWarnings(as.numeric(gs("post_avg_deficit_pct"))),
-        
+
         stringsAsFactors = FALSE
       )
-      
+
       # enforce schema/order
       missing <- setdiff(col_order, names(row))
-      
+
       if (length(missing)){
         for (m in missing){
           row[[m]] <- NA
-        } 
-      } 
+        }
+      }
       row <- row[, col_order, drop = FALSE]
       rows[[length(rows) + 1L]] <- row
     }
   }
-  
+
   if (!length(rows)) {
     return(empty_df[, col_order, drop = FALSE])
   }
-  
+
   out <- do.call(rbind, rows)
-  
+
   return(out)
 }
 

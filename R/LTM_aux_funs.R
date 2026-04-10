@@ -172,11 +172,11 @@ ltm_copy_ts <- function(ts_to_copy, values){
 
 ltm_summarize_break_df <- function(break_df) {
   
-  if (nrow(break_df) == 0 || !any(break_df$has_valid_breaks)) {
-    return("No valid breaks were detected.")
+  if (nrow(break_df) == 0 || !any(break_df$has_valid_breaks_lt_med)) {
+    return("No long-term median valid breaks were detected.")
   }
   
-  df_valid <- subset(break_df, has_valid_breaks == TRUE & !is.na(break_date))
+  df_valid <- subset(break_df, has_valid_breaks_lt_med == TRUE & !is.na(break_date))
   
   summary_list <- df_valid %>% 
     dplyr::group_by(method, data_type) %>% 
@@ -190,8 +190,8 @@ ltm_summarize_break_df <- function(break_df) {
   
   # Format into a human-readable summary string
   summary_text <- paste0(
-    "Break detection summary:\n",
-    "-------------------------\n",
+    "Break detection summary (long-term median valid):\n",
+    "-------------------------------------------------\n",
     paste(
       apply(summary_list, 1, function(row) {
         sprintf(". %s on %s: %d break(s), on %s (change = %.2f%%)",
