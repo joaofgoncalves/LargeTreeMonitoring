@@ -215,6 +215,103 @@ test_that("default startup loads sample tree choices", {
   expect_null(startup$tree_state$message)
 })
 
+test_that("tree location helper resolves configured list coordinates", {
+  config_path <- tempfile(fileext = ".json")
+  file.copy(
+    LargeTreeMonitoring:::ltm_default_params_path(),
+    config_path,
+    overwrite = TRUE
+  )
+
+  startup <- LargeTreeMonitoring:::ltm_app_startup(config_path = config_path)
+  loc <- LargeTreeMonitoring:::ltm_get_tree_location(
+    startup$tree_state,
+    "GV0001"
+  )
+
+  expect_identical(loc$tree_id, "GV0001")
+  expect_equal(loc$lat, 41.27998)
+  expect_equal(loc$lon, -8.2906)
+  expect_null(
+    LargeTreeMonitoring:::ltm_get_tree_location(startup$tree_state, "---")
+  )
+  expect_error(
+    LargeTreeMonitoring:::ltm_get_tree_location(startup$tree_state, "missing"),
+    "not found"
+  )
+
+  duplicate_state <- list(
+    data = data.frame(
+      id = c("A", "A"),
+      lat = c(1, 2),
+      lon = c(3, 4)
+    ),
+    tree_ids_col = "id",
+    lat_col = "lat",
+    lon_col = "lon",
+    message = NULL
+  )
+
+  expect_error(
+    LargeTreeMonitoring:::ltm_get_tree_location(duplicate_state, "A"),
+    "ambiguous"
+  )
+})
+
+test_that("coordinate request helper resolves explicit source", {
+  config_path <- tempfile(fileext = ".json")
+  file.copy(
+    LargeTreeMonitoring:::ltm_default_params_path(),
+    config_path,
+    overwrite = TRUE
+  )
+
+  startup <- LargeTreeMonitoring:::ltm_app_startup(config_path = config_path)
+
+  manual_request <- LargeTreeMonitoring:::ltm_resolve_coordinate_request(
+    coord_source = LargeTreeMonitoring:::ltm_coord_source_manual(),
+    location_id = "GV0001",
+    latitude = 12.345678,
+    longitude = -45.678912,
+    tree_state = startup$tree_state
+  )
+
+  expect_equal(manual_request$lat, 12.345678)
+  expect_equal(manual_request$lon, -45.678912)
+  expect_null(manual_request$tree_id)
+  expect_identical(
+    manual_request$source,
+    LargeTreeMonitoring:::ltm_coord_source_manual()
+  )
+
+  list_request <- LargeTreeMonitoring:::ltm_resolve_coordinate_request(
+    coord_source = LargeTreeMonitoring:::ltm_coord_source_tree_list(),
+    location_id = "GV0001",
+    latitude = 12.345678,
+    longitude = -45.678912,
+    tree_state = startup$tree_state
+  )
+
+  expect_equal(list_request$lat, 41.27998)
+  expect_equal(list_request$lon, -8.2906)
+  expect_identical(list_request$tree_id, "GV0001")
+  expect_identical(
+    list_request$source,
+    LargeTreeMonitoring:::ltm_coord_source_tree_list()
+  )
+
+  expect_error(
+    LargeTreeMonitoring:::ltm_resolve_coordinate_request(
+      coord_source = LargeTreeMonitoring:::ltm_coord_source_tree_list(),
+      location_id = "---",
+      latitude = 12.345678,
+      longitude = -45.678912,
+      tree_state = startup$tree_state
+    ),
+    "Select a Location ID"
+  )
+})
+
 test_that("ltm_app UI exposes the new validator controls", {
   app_body <- paste(
     deparse(body(LargeTreeMonitoring::ltm_app), width.cutoff = 500L),
@@ -232,6 +329,19 @@ test_that("ltm_app UI exposes the new validator controls", {
   expect_match(app_body, '"trend_deficit_tol"', fixed = TRUE)
   expect_match(app_body, '"trend_min_prop_below"', fixed = TRUE)
   expect_match(app_body, '"trend_avg_deficit_thresh"', fixed = TRUE)
+})
+
+test_that("ltm_app UI exposes coordinate source controls", {
+  app_body <- paste(
+    deparse(body(LargeTreeMonitoring::ltm_app), width.cutoff = 500L),
+    collapse = "\n"
+  )
+
+  expect_match(app_body, '"coordinate_source_ui"', fixed = TRUE)
+  expect_match(app_body, '"coordinate_source_status"', fixed = TRUE)
+  expect_match(app_body, '"coord_source"', fixed = TRUE)
+  expect_match(app_body, "ltm-coordinate-highlight", fixed = TRUE)
+  expect_match(app_body, "ltm_resolve_coordinate_request", fixed = TRUE)
 })
 
 test_that("invalid tree list path falls back without crashing app creation", {

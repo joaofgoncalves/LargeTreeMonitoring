@@ -120,6 +120,144 @@ ltm_selected_tree_id <- function(location_id) {
   as.character(location_id)
 }
 
+ltm_coord_source_manual <- function() {
+  "manual"
+}
+
+ltm_coord_source_tree_list <- function() {
+  "tree_list"
+}
+
+ltm_coord_source_choices <- function(tree_list_available = TRUE) {
+  choices <- c("Manual / map coordinates" = ltm_coord_source_manual())
+
+  if (isTRUE(tree_list_available)) {
+    choices <- c(choices, "Location ID list" = ltm_coord_source_tree_list())
+  }
+
+  choices
+}
+
+ltm_tree_list_available <- function(tree_state) {
+  !is.null(tree_state$data) && is.null(tree_state$message)
+}
+
+ltm_validate_coordinate_pair <- function(latitude, longitude) {
+  lat <- suppressWarnings(as.numeric(latitude))
+  lon <- suppressWarnings(as.numeric(longitude))
+
+  if (
+    length(lat) != 1L || length(lon) != 1L ||
+      is.na(lat) || is.na(lon) ||
+      !is.finite(lat) || !is.finite(lon)
+  ) {
+    stop("Latitude and longitude must be finite numeric values.", call. = FALSE)
+  }
+
+  list(lat = lat, lon = lon)
+}
+
+ltm_get_tree_location <- function(tree_state, tree_id) {
+  selected_tree_id <- ltm_selected_tree_id(tree_id)
+
+  if (is.null(selected_tree_id)) {
+    return(NULL)
+  }
+
+  if (is.null(tree_state) || is.null(tree_state$data)) {
+    stop("Location list is unavailable.", call. = FALSE)
+  }
+
+  required_cols <- list(tree_state$tree_ids_col, tree_state$lat_col, tree_state$lon_col)
+  if (any(!vapply(required_cols, ltm_has_path_value, logical(1)))) {
+    stop("Location list columns are not configured correctly.", call. = FALSE)
+  }
+  required_cols <- unlist(required_cols, use.names = FALSE)
+
+  missing_cols <- setdiff(required_cols, names(tree_state$data))
+  if (length(missing_cols) > 0L) {
+    stop(
+      "Location list is missing configured columns: ",
+      paste(missing_cols, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  loc_row <- tree_state$data[
+    as.character(tree_state$data[[tree_state$tree_ids_col]]) == selected_tree_id,
+    ,
+    drop = FALSE
+  ]
+
+  if (nrow(loc_row) == 0L) {
+    stop(
+      "Selected Location ID not found in list: ",
+      selected_tree_id,
+      call. = FALSE
+    )
+  }
+
+  if (nrow(loc_row) > 1L) {
+    stop(
+      "Selected Location ID is ambiguous in list: ",
+      selected_tree_id,
+      call. = FALSE
+    )
+  }
+
+  coords <- ltm_validate_coordinate_pair(
+    loc_row[[tree_state$lat_col]][1],
+    loc_row[[tree_state$lon_col]][1]
+  )
+
+  list(
+    lat = coords$lat,
+    lon = coords$lon,
+    tree_id = selected_tree_id
+  )
+}
+
+ltm_resolve_coordinate_request <- function(
+    coord_source,
+    location_id,
+    latitude,
+    longitude,
+    tree_state
+) {
+  if (!ltm_has_path_value(coord_source)) {
+    coord_source <- ltm_coord_source_manual()
+  }
+
+  if (identical(coord_source, ltm_coord_source_tree_list())) {
+    tree_location <- ltm_get_tree_location(tree_state, location_id)
+
+    if (is.null(tree_location)) {
+      stop(
+        "Select a Location ID before fetching data from the Location ID list.",
+        call. = FALSE
+      )
+    }
+
+    tree_location$source <- ltm_coord_source_tree_list()
+    tree_location$source_label <- "Location ID list"
+    tree_location$status_label <- paste0("Location ID ", tree_location$tree_id)
+
+    return(tree_location)
+  }
+
+  coords <- ltm_validate_coordinate_pair(latitude, longitude)
+
+  list(
+    lat = coords$lat,
+    lon = coords$lon,
+    tree_id = NULL,
+    source = ltm_coord_source_manual(),
+    source_label = "Manual / map coordinates",
+    status_label = "manual/map coordinates"
+  )
+}
+
 ltm_validator_fun_choices <- function() {
   c("Median", "90% percentile")
 }
@@ -503,6 +641,27 @@ ltm_app <- function(config_path = NULL) {
         background-color: #f4f6f6;
         color: #2c3e50;
       }
+      #latitude.ltm-coordinate-highlight,
+      #longitude.ltm-coordinate-highlight {
+        background-color: #fff1a8 !important;
+        border-color: #946200 !important;
+        box-shadow: 0 0 0 2px rgba(148, 98, 0, 0.18);
+      }
+      .ltm-coordinate-status {
+        background-color: #f3f8f7;
+        border: 1px solid #8db6ad;
+        border-radius: 4px;
+        color: #1b4040;
+        font-size: 12px;
+        line-height: 1.35;
+        margin-bottom: 10px;
+        padding: 8px;
+      }
+      .ltm-coordinate-status-warning {
+        background-color: #fff3cd;
+        border-color: #f0d98a;
+        color: #5f4a00;
+      }
       .btn {
         font-size: 13px;
         padding: 6px 10px;
@@ -574,6 +733,7 @@ ltm_app <- function(config_path = NULL) {
           #textInput("user_name", "GEE User Name", value = ""),
 
           # Location or Tree ID from pre-existing list
+          shiny::uiOutput("coordinate_source_ui"),
           shiny::selectInput("location_id", "Select Location ID",
                       choices = tree_ids, selectize = TRUE, selected = "---"),
           uiOutput("tree_list_warning"),
@@ -584,12 +744,13 @@ ltm_app <- function(config_path = NULL) {
           shiny::actionButton("choose_coords", "",
                        icon = shiny::icon("map-location-dot"),
                        style = "margin-bottom: 8px;"),
+          shiny::uiOutput("coordinate_source_status"),
 
           shiny::dateInput("start_date", "Start Date", value = "2015-01-01"),
           shiny::dateInput("end_date", "End Date", value = "2024-12-31"),
           shiny::selectInput("spi", "Spectral Index", choices = c("NDVI", "EVI", "EVI2", "NBR", "NDRE")),
           shiny::selectInput("proc_level", "Processing Level", choices = c("L1C","L2A")),
-          shiny::actionButton("fetch_data", "Fetch Data"),
+          shiny::actionButton("fetch_data", "Fetch Time Series Data"),
 
           # Data regularization
           shiny::hr(),
@@ -814,8 +975,119 @@ ltm_app <- function(config_path = NULL) {
     tree_state <- shiny::reactiveVal(startup$tree_state)
     spidf_data <- reactiveVal(NULL)
 
-    # A new reactiveVal to store the actual lat/lon used in the last fetch
+    # Store the actual location used by the last fetch, independent of form edits.
     selectedCoord <- reactiveVal(NULL)
+    active_coord_source <- reactiveVal(ltm_coord_source_manual())
+    coord_inputs_updating <- reactiveVal(FALSE)
+    coord_update_token <- reactiveVal(0L)
+
+    set_coordinate_source <- function(source) {
+      if (!source %in% c(ltm_coord_source_manual(), ltm_coord_source_tree_list())) {
+        source <- ltm_coord_source_manual()
+      }
+
+      active_coord_source(source)
+      if (!identical(shiny::isolate(input$coord_source), source)) {
+        shiny::updateRadioButtons(session, "coord_source", selected = source)
+      }
+    }
+
+    clear_coordinate_highlight <- function() {
+      shinyjs::removeClass(id = "latitude", class = "ltm-coordinate-highlight")
+      shinyjs::removeClass(id = "longitude", class = "ltm-coordinate-highlight")
+    }
+
+    highlight_coordinate_inputs <- function() {
+      shinyjs::addClass(id = "latitude", class = "ltm-coordinate-highlight")
+      shinyjs::addClass(id = "longitude", class = "ltm-coordinate-highlight")
+      shinyjs::delay(1400, {
+        clear_coordinate_highlight()
+      })
+    }
+
+    update_coordinate_inputs <- function(lat, lon, highlight = FALSE) {
+      current_token <- coord_update_token() + 1L
+      coord_update_token(current_token)
+      coord_inputs_updating(TRUE)
+
+      shiny::updateNumericInput(session, "latitude", value = lat)
+      shiny::updateNumericInput(session, "longitude", value = lon)
+
+      if (isTRUE(highlight)) {
+        highlight_coordinate_inputs()
+      } else {
+        clear_coordinate_highlight()
+      }
+
+      shinyjs::delay(500, {
+        if (identical(coord_update_token(), current_token)) {
+          coord_inputs_updating(FALSE)
+        }
+      })
+    }
+
+    clear_location_id <- function() {
+      if (!is.null(ltm_selected_tree_id(shiny::isolate(input$location_id)))) {
+        shiny::updateSelectInput(session, "location_id", selected = "---")
+      }
+    }
+
+    coordinate_status_div <- function(text, warning = FALSE) {
+      div(
+        class = paste(
+          "ltm-coordinate-status",
+          if (isTRUE(warning)) "ltm-coordinate-status-warning" else ""
+        ),
+        tags$strong("Coordinate source"),
+        tags$br(),
+        text
+      )
+    }
+
+    output$coordinate_source_ui <- renderUI({
+      choices <- ltm_coord_source_choices(
+        ltm_tree_list_available(tree_state())
+      )
+      selected <- active_coord_source()
+      if (!selected %in% unname(choices)) {
+        selected <- ltm_coord_source_manual()
+      }
+
+      shiny::radioButtons(
+        "coord_source",
+        "Coordinate source",
+        choices = choices,
+        selected = selected
+      )
+    })
+
+    output$coordinate_source_status <- renderUI({
+      request <- tryCatch(
+        ltm_resolve_coordinate_request(
+          coord_source = active_coord_source(),
+          location_id = input$location_id,
+          latitude = input$latitude,
+          longitude = input$longitude,
+          tree_state = tree_state()
+        ),
+        error = function(error) {
+          error
+        }
+      )
+
+      if (inherits(request, "error")) {
+        return(coordinate_status_div(conditionMessage(request), warning = TRUE))
+      }
+
+      coordinate_status_div(
+        sprintf(
+          "Fetch data will use %s: %.6f, %.6f",
+          request$status_label,
+          request$lat,
+          request$lon
+        )
+      )
+    })
 
     output$tree_list_warning <- renderUI({
       tree_message <- tree_state()$message
@@ -837,6 +1109,99 @@ ltm_app <- function(config_path = NULL) {
         tree_message
       )
     })
+
+    observeEvent(tree_state(), {
+      if (
+        !ltm_tree_list_available(tree_state()) &&
+          identical(active_coord_source(), ltm_coord_source_tree_list())
+      ) {
+        set_coordinate_source(ltm_coord_source_manual())
+      }
+    }, ignoreInit = TRUE)
+
+    observeEvent(input$coord_source, {
+      source <- input$coord_source
+
+      if (
+        identical(source, ltm_coord_source_tree_list()) &&
+          !ltm_tree_list_available(tree_state())
+      ) {
+        set_coordinate_source(ltm_coord_source_manual())
+        return(NULL)
+      }
+
+      set_coordinate_source(source)
+
+      if (identical(source, ltm_coord_source_manual())) {
+        clear_location_id()
+        clear_coordinate_highlight()
+        return(NULL)
+      }
+
+      tree_location <- tryCatch(
+        ltm_get_tree_location(tree_state(), input$location_id),
+        error = function(error) {
+          error
+        }
+      )
+
+      if (!inherits(tree_location, "error") && !is.null(tree_location)) {
+        update_coordinate_inputs(
+          tree_location$lat,
+          tree_location$lon,
+          highlight = TRUE
+        )
+      }
+    }, ignoreInit = TRUE)
+
+    observeEvent(input$location_id, {
+      selected_tree_id <- ltm_selected_tree_id(input$location_id)
+
+      if (is.null(selected_tree_id)) {
+        if (identical(active_coord_source(), ltm_coord_source_tree_list())) {
+          set_coordinate_source(ltm_coord_source_manual())
+        }
+        clear_coordinate_highlight()
+        return(NULL)
+      }
+
+      tree_location <- tryCatch(
+        ltm_get_tree_location(tree_state(), selected_tree_id),
+        error = function(error) {
+          error
+        }
+      )
+
+      if (inherits(tree_location, "error")) {
+        shinyalert::shinyalert(
+          title = "Location list error",
+          text = conditionMessage(tree_location),
+          type = "error"
+        )
+        set_coordinate_source(ltm_coord_source_manual())
+        shiny::updateSelectInput(session, "location_id", selected = "---")
+        return(NULL)
+      }
+
+      set_coordinate_source(ltm_coord_source_tree_list())
+      update_coordinate_inputs(
+        tree_location$lat,
+        tree_location$lon,
+        highlight = TRUE
+      )
+    }, ignoreInit = TRUE)
+
+    observeEvent({
+      list(input$latitude, input$longitude)
+    }, {
+      if (isTRUE(coord_inputs_updating())) {
+        return(NULL)
+      }
+
+      set_coordinate_source(ltm_coord_source_manual())
+      clear_location_id()
+      clear_coordinate_highlight()
+    }, ignoreInit = TRUE)
 
     ## ------------------------------------------------------------------------ ##
     #  ---- Coordinate picker with reactive val to update main coordinates ----
@@ -908,10 +1273,13 @@ ltm_app <- function(config_path = NULL) {
 
       if (!is.null(coords$lat) && !is.null(coords$lon)) {
 
-        updateNumericInput(session, "latitude", value = coords$lat)
-        updateNumericInput(session, "longitude", value = coords$lon)
-
-        selectedCoord(list(lat = coords$lat, lon = coords$lon))
+        set_coordinate_source(ltm_coord_source_manual())
+        clear_location_id()
+        update_coordinate_inputs(
+          coords$lat,
+          coords$lon,
+          highlight = FALSE
+        )
       }
 
       removeModal()
@@ -955,59 +1323,42 @@ ltm_app <- function(config_path = NULL) {
           }
 
           if(!date_error) {
-            selected_tree_id <- ltm_selected_tree_id(input$location_id)
+            selected_tree_id <- NULL
             requested_buffer_radius <- NULL
             cache_status_detail <- NULL
             location_ready <- TRUE
             cache_hit <- FALSE
 
-            # Use either chosen location or manual lat/lon
-            if (!is.null(selected_tree_id)) {
-              tree_info <- tree_state()
-              tree_list <- tree_info$data
-
-              if (is.null(tree_list)) {
-                shinyalert::shinyalert(
-                  title = "Location list unavailable",
-                  text = "The configured tree list could not be loaded.",
-                  type = "error"
-                )
-                output$loading <- renderUI({ NULL })
-                location_ready <- FALSE
+            coord_request <- tryCatch(
+              ltm_resolve_coordinate_request(
+                coord_source = active_coord_source(),
+                location_id = input$location_id,
+                latitude = input$latitude,
+                longitude = input$longitude,
+                tree_state = tree_state()
+              ),
+              error = function(error) {
+                error
               }
+            )
 
-              if (isTRUE(location_ready)) {
-                loc_row <- tree_list[
-                  as.character(tree_list[[tree_info$tree_ids_col]]) == selected_tree_id,
-                  ,
-                  drop = FALSE
-                ]
-
-                if (nrow(loc_row) == 1) {
-                  lat <- loc_row[[tree_info$lat_col]][1]
-                  lon <- loc_row[[tree_info$lon_col]][1]
-
-                } else {
-                  shinyalert::shinyalert(
-                    title = "Error in start date",
-                    text = "Selected location ID not found in list",
-                    type = "error"
-                  )
-
-                  output$loading <- renderUI({ NULL })
-                  location_ready <- FALSE
-                }
-              }
-            } else {
-              lat <- input$latitude
-              lon <- input$longitude
+            if (inherits(coord_request, "error")) {
+              shinyalert::shinyalert(
+                title = "Coordinate source error",
+                text = conditionMessage(coord_request),
+                type = "error"
+              )
+              output$loading <- renderUI({ NULL })
+              location_ready <- FALSE
             }
 
             if (isTRUE(location_ready)) {
-              # Store the lat/lon used (for the map, etc.)
-              selectedCoord(list(lat = lat, lon = lon))
+              lat <- coord_request$lat
+              lon <- coord_request$lon
+              selected_tree_id <- coord_request$tree_id
+            }
 
-
+            if (isTRUE(location_ready)) {
               ## Check if it is necessary to clean break analysis outputs if a
               # new set of coordinates have appeared including the nulling the
               ## breaks in the plot and the tables in the bottom part.
@@ -1092,6 +1443,7 @@ ltm_app <- function(config_path = NULL) {
 
                   output$status <- renderText(paste("[OK] Data loaded from cache:", cached_file))
                   spidf_data(cached_data)
+                  selectedCoord(coord_request)
                   output$loading <- renderUI({NULL})
                   cache_hit <- TRUE
                 }
@@ -1169,6 +1521,7 @@ ltm_app <- function(config_path = NULL) {
                     }
 
                     spidf_data(df)
+                    selectedCoord(coord_request)
 
                     output$loading <- renderUI({NULL})
                   }, error = function(error) {
@@ -1263,9 +1616,15 @@ ltm_app <- function(config_path = NULL) {
         df_breaks <- br_obj$df_breaks
       }
 
+      coords <- selectedCoord()
+      tree_id <- ""
+      if (!is.null(coords$tree_id)) {
+        tree_id <- coords$tree_id
+      }
+
       ltm_plot_spidf_ts(
         spidf_obj = spidf_data(),
-        tree_id   = input$location_id,
+        tree_id   = tree_id,
         df_breaks = df_breaks
       )
     })
@@ -1302,12 +1661,17 @@ ltm_app <- function(config_path = NULL) {
     output$location_map <- renderLeaflet({
       coords <- selectedCoord()
       req(coords)
+      popup_label <- if (!is.null(coords$status_label)) {
+        paste("Fetched location:", coords$status_label)
+      } else {
+        "Fetched location"
+      }
 
       leaflet() %>%
         addTiles(group = "OpenStreetMap") %>%
         addProviderTiles("Esri.WorldImagery", group = "Satellite") %>%
         setView(lng = coords$lon, lat = coords$lat, zoom = 13) %>%
-        addMarkers(lng = coords$lon, lat = coords$lat, popup = "Tree Location") %>%
+        addMarkers(lng = coords$lon, lat = coords$lat, popup = popup_label) %>%
         addLayersControl(
           baseGroups = c("OpenStreetMap", "Satellite"),
           options = layersControlOptions(collapsed = FALSE)
@@ -1363,6 +1727,8 @@ ltm_app <- function(config_path = NULL) {
         tree_info <- ltm_load_tree_list_state(new_params, config_path = config_path)
         tree_state(tree_info)
         ltm_update_tree_choices(session, tree_info, selected = "---")
+        set_coordinate_source(ltm_coord_source_manual())
+        clear_coordinate_highlight()
 
         removeModal()
 

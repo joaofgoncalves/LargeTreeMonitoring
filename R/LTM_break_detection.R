@@ -1,6 +1,5 @@
 
 
-
 # helpers ---------------------------------------------------------------
 
 bound_idx <- function(lo, hi, n) pmax(1, pmin(n, seq.int(lo, hi)))
@@ -633,7 +632,7 @@ ltm_ed_detect_breaks <- function(spidf,
                                  st_window        = NULL,     # integer; if set, enables short-term validator
                                  st_thresh_change = -10,     # % change threshold for short-term validator
                                  st_fun           = median,   # aggregation function for short-term windows
-                                 # --- trend check (randomized validator uses this window) ---
+                                 # --- trend check ---
                                  trend_window   = NULL,     # integer; if set, enables trend validator
                                  trend_require_lower_level = TRUE, # require post mean < pre mean
                                  trend_rand_B             = 99,
@@ -937,7 +936,7 @@ ltm_cpm_detect_breaks <- function(spidf,
                                   st_window        = NULL,
                                   st_thresh_change = -10,
                                   st_fun           = median,
-                                  # --- trend check (randomized validator uses this window) ---
+                                  # --- trend check ---
                                   trend_window = NULL,
                                   trend_require_lower_level = TRUE,
                                   trend_rand_B             = 99,
@@ -1223,7 +1222,7 @@ ltm_bfast01_detect_breaks <- function(
     st_window            = NULL,
     st_thresh_change     = -5,
     st_fun               = median,
-    # --- trend check (randomized validator) ---
+    # --- trend check ---
     trend_window               = NULL,   # integer; if set, enables trend validator
     trend_require_lower_level  = TRUE,
     trend_rand_B               = 99,
@@ -1580,7 +1579,7 @@ ltm_mcp_detect_breaks <- function(spidf,
                                   st_window        = NULL,
                                   st_thresh_change = -10,
                                   st_fun           = median,
-                                  # --- trend check (randomized validator) ---
+                                  # --- trend check ---
                                   trend_window               = NULL, # integer; if set, enables trend validator
                                   trend_require_lower_level  = TRUE,
                                   trend_rand_B               = 99,
@@ -1893,7 +1892,7 @@ ltm_strucchange_detect_breaks <- function(
     st_window        = NULL,
     st_thresh_change = -10,
     st_fun           = median,
-    # --- trend check (randomized validator) ---
+    # --- trend check ---
     trend_window               = NULL,                 # integer; if set, enables trend validator
     trend_require_lower_level  = TRUE,
     trend_rand_B               = 99,
@@ -2208,7 +2207,7 @@ ltm_wbs_detect_breaks <- function(spidf,
                                   st_window        = NULL,
                                   st_thresh_change = -10,
                                   st_fun           = median,
-                                  # --- trend check (randomized validator) ---
+                                  # --- trend check ---
                                   trend_window               = NULL,                 # integer; if set, enables trend validator
                                   trend_require_lower_level  = TRUE,
                                   trend_rand_B               = 99,
