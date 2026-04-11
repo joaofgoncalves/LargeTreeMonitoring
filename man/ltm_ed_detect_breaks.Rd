@@ -14,9 +14,9 @@ ltm_ed_detect_breaks(
   alpha = 1,
   season_adj = TRUE,
   s_window = 30,
-  thresh_change = -10,
   thresh_date,
-  tresh_int = NULL,
+  lt_window = NULL,
+  lt_thresh_change = -10,
   lt_fun = median,
   st_window = NULL,
   st_thresh_change = -10,
@@ -26,7 +26,7 @@ ltm_ed_detect_breaks(
   trend_rand_B = 99,
   trend_rand_seed = 11235,
   trend_post_pct_thresh = -10,
-  trend_alpha = 0.1,
+  trend_alpha = 0.05,
   trend_deficit_tol = 0.05,
   trend_min_prop_below = 0.6,
   trend_avg_deficit_thresh = -1.5,
@@ -57,15 +57,15 @@ breakpoint detection when the series is long enough.}
 \item{s_window}{Integer. Seasonal window used by `stats::stl()` when
 `season_adj = TRUE`.}
 
-\item{thresh_change}{Numeric. Maximum allowed percent change for the
-long-term validator. More negative values indicate stronger declines.}
-
 \item{thresh_date}{Date or date-like value. The selected breakpoint must
 occur on or after this date to be considered valid.}
 
-\item{tresh_int}{Optional integer. If provided, long-term validation is
-computed using symmetric windows of this size around the break; otherwise
-all observations before and after the break are used.}
+\item{lt_window}{Optional integer. If provided, long-term validation is
+computed using symmetric windows of this size around the break. Use `NULL`
+or `0` to use all observations before and after the break.}
+
+\item{lt_thresh_change}{Numeric. Maximum allowed percent change for the
+long-term validator. More negative values indicate stronger declines.}
 
 \item{lt_fun}{Function. Aggregation function used by the long-term validator,
 typically `median` or `mean`.}
