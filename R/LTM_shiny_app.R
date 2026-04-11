@@ -192,7 +192,10 @@ ltm_collect_shiny_break_validator_args <- function(
     st_fun_label,
     trend_window,
     trend_post_pct_thresh,
-    trend_alpha
+    trend_alpha,
+    trend_deficit_tol = 0.05,
+    trend_min_prop_below = 0.6,
+    trend_avg_deficit_thresh = -1.5
 ) {
   lt_fun_call <- ltm_get_validator_fun_call(lt_fun_label)
   st_fun_call <- ltm_get_validator_fun_call(st_fun_label)
@@ -235,6 +238,23 @@ ltm_collect_shiny_break_validator_args <- function(
       field = "Short-term trend alpha",
       min_value = 0,
       max_value = 1
+    ),
+    trend_deficit_tol = ltm_parse_validator_numeric(
+      trend_deficit_tol,
+      field = "Short-term trend deficit tolerance",
+      min_value = 0,
+      max_value = 1
+    ),
+    trend_min_prop_below = ltm_parse_validator_numeric(
+      trend_min_prop_below,
+      field = "Short-term trend minimum proportion below baseline",
+      min_value = 0,
+      max_value = 1
+    ),
+    trend_avg_deficit_thresh = ltm_parse_validator_numeric(
+      trend_avg_deficit_thresh,
+      field = "Short-term trend average deficit threshold",
+      max_value = 0
     )
   )
 
@@ -690,6 +710,29 @@ ltm_app <- function(config_path = NULL) {
             min = 0,
             max = 1,
             step = 0.01
+          ),
+          shiny::numericInput(
+            "trend_deficit_tol",
+            "Trend deficit tolerance",
+            value = 0.05,
+            min = 0,
+            max = 1,
+            step = 0.01
+          ),
+          shiny::numericInput(
+            "trend_min_prop_below",
+            "Trend minimum proportion below baseline",
+            value = 0.6,
+            min = 0,
+            max = 1,
+            step = 0.05
+          ),
+          shiny::numericInput(
+            "trend_avg_deficit_thresh",
+            "Trend average deficit threshold (%)",
+            value = -1.5,
+            max = 0,
+            step = 0.1
           ),
 
           shiny::actionButton("analyze_breaks", "Analyze Breaks"),
@@ -1408,7 +1451,10 @@ ltm_app <- function(config_path = NULL) {
           st_fun_label = input$st_fun,
           trend_window = input$trend_window,
           trend_post_pct_thresh = input$trend_post_pct_thresh,
-          trend_alpha = input$trend_alpha
+          trend_alpha = input$trend_alpha,
+          trend_deficit_tol = input$trend_deficit_tol,
+          trend_min_prop_below = input$trend_min_prop_below,
+          trend_avg_deficit_thresh = input$trend_avg_deficit_thresh
         ),
         error = function(error) {
           shinyalert::shinyalert(

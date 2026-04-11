@@ -104,7 +104,7 @@ make_test_trend_valid_ts_breaks_run <- function() {
   )
 }
 
-test_that("detector long-term validator arguments are grouped consistently", {
+test_that("detector validator arguments are grouped consistently", {
   detector_funs <- c(
     "ltm_ed_detect_breaks",
     "ltm_cpm_detect_breaks",
@@ -116,12 +116,22 @@ test_that("detector long-term validator arguments are grouped consistently", {
 
   for (fn_name in detector_funs) {
     arg_names <- names(formals(get(fn_name, envir = asNamespace("LargeTreeMonitoring"))))
-    start <- match("thresh_date", arg_names)
+    lt_start <- match("lt_window", arg_names)
+    st_start <- match("st_window", arg_names)
+
     expect_identical(
-      arg_names[start:(start + 3L)],
-      c("thresh_date", "lt_window", "lt_thresh_change", "lt_fun"),
+      arg_names[lt_start:(lt_start + 2L)],
+      c("lt_window", "lt_thresh_change", "lt_fun"),
       info = fn_name
     )
+    expect_identical(
+      arg_names[st_start:(st_start + 2L)],
+      c("st_window", "st_thresh_change", "st_fun"),
+      info = fn_name
+    )
+    expect_true(match("thresh_date", arg_names) < lt_start, info = fn_name)
+    expect_equal(st_start, lt_start + 3L, info = fn_name)
+    expect_equal(match("trend_window", arg_names), st_start + 3L, info = fn_name)
   }
 })
 

@@ -36,7 +36,10 @@ test_that("validator settings helper maps Shiny selections to detector arguments
     st_fun_label = "Median",
     trend_window = 30,
     trend_post_pct_thresh = -8,
-    trend_alpha = 0.1
+    trend_alpha = 0.1,
+    trend_deficit_tol = 0.08,
+    trend_min_prop_below = 0.75,
+    trend_avg_deficit_thresh = -3.5
   )
 
   expect_equal(validator_args$lt_window, 30L)
@@ -46,6 +49,9 @@ test_that("validator settings helper maps Shiny selections to detector arguments
   expect_equal(validator_args$trend_window, 30L)
   expect_equal(validator_args$trend_post_pct_thresh, -8)
   expect_equal(validator_args$trend_alpha, 0.1)
+  expect_equal(validator_args$trend_deficit_tol, 0.08)
+  expect_equal(validator_args$trend_min_prop_below, 0.75)
+  expect_equal(validator_args$trend_avg_deficit_thresh, -3.5)
   expect_equal(validator_args$lt_fun(c(1, 2, 3, 4, 5), na.rm = TRUE), 4.6)
   expect_equal(validator_args$st_fun(c(1, 2, 3), na.rm = TRUE), 2)
   expect_identical(
@@ -64,7 +70,10 @@ test_that("validator settings helper allows zero-valued windows to disable optio
     st_fun_label = "Median",
     trend_window = 0,
     trend_post_pct_thresh = -10,
-    trend_alpha = 0.1
+    trend_alpha = 0.1,
+    trend_deficit_tol = 0.05,
+    trend_min_prop_below = 0.6,
+    trend_avg_deficit_thresh = -1.5
   )
 
   expect_null(validator_args$lt_window)
@@ -83,7 +92,10 @@ test_that("validator settings helper rejects unsupported thresholds", {
       st_fun_label = "Median",
       trend_window = 30,
       trend_post_pct_thresh = -10,
-      trend_alpha = 0.1
+      trend_alpha = 0.1,
+      trend_deficit_tol = 0.05,
+      trend_min_prop_below = 0.6,
+      trend_avg_deficit_thresh = -1.5
     ),
     "Long-term percent change threshold"
   )
@@ -98,9 +110,66 @@ test_that("validator settings helper rejects unsupported thresholds", {
       st_fun_label = "Median",
       trend_window = 2,
       trend_post_pct_thresh = -10,
-      trend_alpha = 0.1
+      trend_alpha = 0.1,
+      trend_deficit_tol = 0.05,
+      trend_min_prop_below = 0.6,
+      trend_avg_deficit_thresh = -1.5
     ),
     "Short-term trend window size"
+  )
+
+  expect_error(
+    LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
+      lt_fun_label = "Median",
+      lt_window = 30,
+      lt_thresh_change = -10,
+      st_window = 30,
+      st_thresh_change = -10,
+      st_fun_label = "Median",
+      trend_window = 30,
+      trend_post_pct_thresh = -10,
+      trend_alpha = 0.1,
+      trend_deficit_tol = 1.2,
+      trend_min_prop_below = 0.6,
+      trend_avg_deficit_thresh = -1.5
+    ),
+    "Short-term trend deficit tolerance"
+  )
+
+  expect_error(
+    LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
+      lt_fun_label = "Median",
+      lt_window = 30,
+      lt_thresh_change = -10,
+      st_window = 30,
+      st_thresh_change = -10,
+      st_fun_label = "Median",
+      trend_window = 30,
+      trend_post_pct_thresh = -10,
+      trend_alpha = 0.1,
+      trend_deficit_tol = 0.05,
+      trend_min_prop_below = 1.1,
+      trend_avg_deficit_thresh = -1.5
+    ),
+    "Short-term trend minimum proportion below baseline"
+  )
+
+  expect_error(
+    LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
+      lt_fun_label = "Median",
+      lt_window = 30,
+      lt_thresh_change = -10,
+      st_window = 30,
+      st_thresh_change = -10,
+      st_fun_label = "Median",
+      trend_window = 30,
+      trend_post_pct_thresh = -10,
+      trend_alpha = 0.1,
+      trend_deficit_tol = 0.05,
+      trend_min_prop_below = 0.6,
+      trend_avg_deficit_thresh = 2
+    ),
+    "Short-term trend average deficit threshold"
   )
 })
 
@@ -114,7 +183,10 @@ test_that("validator call labels are written back onto stored runs", {
     st_fun_label = "Median",
     trend_window = 30,
     trend_post_pct_thresh = -10,
-    trend_alpha = 0.1
+    trend_alpha = 0.1,
+    trend_deficit_tol = 0.05,
+    trend_min_prop_below = 0.6,
+    trend_avg_deficit_thresh = -1.5
   )
 
   run_obj <- structure(
@@ -157,6 +229,9 @@ test_that("ltm_app UI exposes the new validator controls", {
   expect_match(app_body, '"trend_window"', fixed = TRUE)
   expect_match(app_body, '"trend_post_pct_thresh"', fixed = TRUE)
   expect_match(app_body, '"trend_alpha"', fixed = TRUE)
+  expect_match(app_body, '"trend_deficit_tol"', fixed = TRUE)
+  expect_match(app_body, '"trend_min_prop_below"', fixed = TRUE)
+  expect_match(app_body, '"trend_avg_deficit_thresh"', fixed = TRUE)
 })
 
 test_that("invalid tree list path falls back without crashing app creation", {

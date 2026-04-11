@@ -2198,12 +2198,12 @@ ltm_wbs_detect_breaks <- function(spidf,
                                   ts_name    = "spi",
                                   season_adj = TRUE,
                                   s_window   = 30,
+                                  num_intervals    = 1000,
                                   thresh_date,
                                   # --- long-term check ---
                                   lt_window        = NULL,
                                   lt_thresh_change = -10,
                                   lt_fun           = median,
-                                  num_intervals    = 1000,
                                   # --- short-term check ---
                                   st_window        = NULL,
                                   st_thresh_change = -10,
