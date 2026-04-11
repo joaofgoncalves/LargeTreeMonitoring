@@ -729,7 +729,7 @@ ltm_app <- function(config_path = NULL) {
         shiny::sidebarPanel(
           width = 12,  # use full width inside the resizable container
 
-          # Input point data --------------------------------------------------------------------#
+          # Input point data ---------------------------------------------------#
 
           shiny::strong("SELECT POINT FOR ANALYSIS"),
           shiny::br(),
@@ -765,7 +765,7 @@ ltm_app <- function(config_path = NULL) {
           # Get data time series button
           shiny::actionButton("fetch_data", "Fetch Time Series Data"),
 
-          # Data regularization ----------------------------------------------------------------- #
+          # Data regularization ------------------------------------------------ #
           shiny::hr(),
           shiny::strong("DATA PREPROCESSING"),
           shiny::br(),
@@ -791,7 +791,9 @@ ltm_app <- function(config_path = NULL) {
           shiny::actionButton("apply_mov_quantile", "Apply Moving Window"),
 
           # Whittaker time series smoothing
-          shiny::hr(),
+          shiny::br(),
+          shiny::br(),
+
           shiny::numericInput("lambda", tags$span(shiny::icon("chart-line"),"Whittaker Smoothing Lambda"),
                        value = 20000, min = 1),
           shiny::numericInput("quantile_thresh", "Whittaker Quantile Threshold",
@@ -801,7 +803,7 @@ ltm_app <- function(config_path = NULL) {
           shiny::actionButton("apply_whittaker", "Apply Whittaker Smoother"),
 
 
-          # Break Detection component -----------------------------------------------------#
+          # Break Detection component ------------------------------------------#
           # -- NEW: Break Detection UI inputs --
           shiny::hr(),
           shiny::strong("BREAKPOINT DETECTION ANALYSIS"),
@@ -841,6 +843,10 @@ ltm_app <- function(config_path = NULL) {
 
           shiny::dateInput("break_thresh_date", "Break Threshold Date",
                     value = "2016-01-01"),
+
+
+          ## Validator GUI inputs ----------------------------------------------#
+
           shiny::div(style = "font-weight: 600; margin-top: 8px;", "Long-term validator"),
           shiny::numericInput(
             "lt_window",
