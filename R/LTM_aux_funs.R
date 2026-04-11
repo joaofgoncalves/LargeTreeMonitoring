@@ -341,7 +341,9 @@ ltm_summarize_break_df <- function(break_df) {
   paste(summary_lines, collapse = "\n")
 }
 
-Percentile90 <- function(x) stats::quantile(x, probs = 0.9, na.rm = TRUE)
+Percentile90 <- function(x, na.rm = TRUE, ...) {
+  unname(stats::quantile(x, probs = 0.9, na.rm = na.rm, ...))
+}
 
 
 ltm_loc_file <- function() {
