@@ -928,11 +928,18 @@ ltm_cpm_detect_breaks <- function(spidf,
   # CPM detection ---------------------------------------------------------
   startup <- ltm_days_between(get_range_start(spidf), thresh_date)
 
-  cp <- cpm::detectChangePoint(ysa,
-                               cpmType = cpm_method,
-                               ARL0    = ARL0,
-                               startup = startup,
-                               ...)
+  cp <- do.call(
+    cpm::detectChangePoint,
+    c(
+      list(
+        x = ysa,
+        cpmType = cpm_method,
+        ARL0 = ARL0,
+        startup = startup
+      ),
+      dots
+    )
+  )
 
   has_breaks <- isTRUE(cp$changeDetected)
 
