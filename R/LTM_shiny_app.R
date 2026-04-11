@@ -185,7 +185,8 @@ ltm_parse_optional_validator_window <- function(value, field, min_value = 1L) {
 
 ltm_collect_shiny_break_validator_args <- function(
     lt_fun_label,
-    thresh_change,
+    lt_window,
+    lt_thresh_change,
     st_window,
     st_thresh_change,
     st_fun_label,
@@ -197,8 +198,13 @@ ltm_collect_shiny_break_validator_args <- function(
   st_fun_call <- ltm_get_validator_fun_call(st_fun_label)
 
   out <- list(
-    thresh_change = ltm_parse_validator_numeric(
-      thresh_change,
+    lt_window = ltm_parse_optional_validator_window(
+      lt_window,
+      field = "Long-term window size",
+      min_value = 1L
+    ),
+    lt_thresh_change = ltm_parse_validator_numeric(
+      lt_thresh_change,
       field = "Long-term percent change threshold",
       max_value = 0
     ),
@@ -623,7 +629,15 @@ ltm_app <- function(config_path = NULL) {
           shiny::dateInput("break_thresh_date", "Break Threshold Date",
                     value = "2016-01-01"),
           shiny::div(style = "font-weight: 600; margin-top: 8px;", "Long-term validator"),
-          shiny::numericInput("thresh_change", "Long-term % change threshold",
+          shiny::numericInput(
+            "lt_window",
+            "Long-term window size (observations per side, 0 uses full series)",
+            value = 0,
+            min = 0,
+            max = 365,
+            step = 1
+          ),
+          shiny::numericInput("lt_thresh_change", "Long-term % change threshold",
                        value = -10, max = 0),
 
           shiny::radioButtons(
@@ -672,7 +686,7 @@ ltm_app <- function(config_path = NULL) {
           shiny::numericInput(
             "trend_alpha",
             "Trend alpha",
-            value = 0.1,
+            value = 0.05,
             min = 0,
             max = 1,
             step = 0.01
@@ -1387,7 +1401,8 @@ ltm_app <- function(config_path = NULL) {
       validator_args <- tryCatch(
         ltm_collect_shiny_break_validator_args(
           lt_fun_label = input$lt_fun,
-          thresh_change = input$thresh_change,
+          lt_window = input$lt_window,
+          lt_thresh_change = input$lt_thresh_change,
           st_window = input$st_window,
           st_thresh_change = input$st_thresh_change,
           st_fun_label = input$st_fun,
@@ -1417,7 +1432,6 @@ ltm_app <- function(config_path = NULL) {
         season_adj    <- TRUE
         s_window      <- input$s_window
         thresh_date   <- input$break_thresh_date
-        tresh_int     <- NULL
 
         ##
         ## Loop through all time series and algorithms for break detection selected
@@ -1438,8 +1452,7 @@ ltm_app <- function(config_path = NULL) {
                     s_window = s_window,
                     cpm_method = params()$cpm$cpm_method,
                     ARL0 = params()$cpm$ARL0,
-                    thresh_date = thresh_date,
-                    tresh_int = tresh_int
+                    thresh_date = thresh_date
                   ),
                   validator_args
                 )
@@ -1457,8 +1470,7 @@ ltm_app <- function(config_path = NULL) {
                     k = params()$ed$k,
                     min_size = params()$ed$min_size,
                     alpha = params()$ed$alpha,
-                    thresh_date = thresh_date,
-                    tresh_int = tresh_int
+                    thresh_date = thresh_date
                   ),
                   validator_args
                 )
@@ -1478,8 +1490,7 @@ ltm_app <- function(config_path = NULL) {
                     bandwidth = params()$bfast$bandwidth,
                     functional = params()$bfast$functional,
                     order = params()$bfast$order,
-                    thresh_date = thresh_date,
-                    tresh_int = tresh_int
+                    thresh_date = thresh_date
                   ),
                   validator_args
                 )
@@ -1513,8 +1524,7 @@ ltm_app <- function(config_path = NULL) {
                     s_window = s_window,
                     h = params()$stc$h,
                     breaks = params()$stc$breaks,
-                    thresh_date = thresh_date,
-                    tresh_int = tresh_int
+                    thresh_date = thresh_date
                   ),
                   validator_args
                 )
@@ -1528,7 +1538,6 @@ ltm_app <- function(config_path = NULL) {
                     season_adj = season_adj,
                     s_window = s_window,
                     thresh_date = thresh_date,
-                    tresh_int = tresh_int,
                     num_intervals = params()$wbs$num_intervals
                   ),
                   validator_args
