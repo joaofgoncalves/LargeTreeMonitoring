@@ -1,4 +1,13 @@
 
+emoji_html <- function(...) {
+  cps <- toupper(unlist(list(...), use.names = FALSE))
+  ok <- grepl("^[0-9A-F]+$", cps)
+  if (!all(ok)) {
+    stop("Code points must be hex strings like '1F680' or '2764'.", call. = FALSE)
+  }
+  htmltools::HTML(paste0("&#x", cps, ";", collapse = ""))
+}
+
 ltm_default_params_path <- function() {
   system.file(
     "extdata", "params-default.json",
@@ -739,7 +748,7 @@ ltm_app <- function(config_path = NULL) {
 
           ## Parameter editing
           shiny::hr(),
-          shiny::p("Configure parameters"),
+          shiny::p(emoji_html("2699"), "Configure parameters"),
           shiny::actionButton("edit_params", "Edit parameters"),
           shiny::verbatimTextOutput("param_save_status")
 
