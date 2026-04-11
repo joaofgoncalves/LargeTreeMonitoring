@@ -14,6 +14,78 @@ pct_change <- function(post, pre) {
   return(((post - pre) / pre) * 100)
 }
 
+ltm_normalize_lt_window <- function(lt_window) {
+  if (is.null(lt_window)) {
+    return(NULL)
+  }
+
+  if (length(lt_window) != 1L ||
+      is.list(lt_window) ||
+      is.function(lt_window) ||
+      is.logical(lt_window) ||
+      inherits(lt_window, c("Date", "POSIXt"))) {
+    stop("`lt_window` must be NULL, 0, or a positive whole number.", call. = FALSE)
+  }
+
+  if (is.na(lt_window)) {
+    stop("`lt_window` must be NULL, 0, or a positive whole number.", call. = FALSE)
+  }
+
+  lt_window_num <- suppressWarnings(as.numeric(lt_window))
+  if (!is.finite(lt_window_num) || lt_window_num < 0 || lt_window_num %% 1 != 0) {
+    stop("`lt_window` must be NULL, 0, or a positive whole number.", call. = FALSE)
+  }
+
+  if (lt_window_num == 0) {
+    return(NULL)
+  }
+
+  as.integer(lt_window_num)
+}
+
+ltm_resolve_deprecated_lt_args <- function(dots,
+                                           lt_window,
+                                           lt_thresh_change,
+                                           call = NULL) {
+  dots_names <- names(dots)
+  if (is.null(dots_names)) {
+    dots_names <- rep("", length(dots))
+  }
+
+  call_args <- if (is.null(call)) character(0) else names(as.list(call))[-1]
+  has_new_window <- "lt_window" %in% call_args
+  has_new_thresh <- "lt_thresh_change" %in% call_args
+
+  if ("tresh_int" %in% dots_names) {
+    if (has_new_window) {
+      stop("Use only one of `lt_window` and deprecated `tresh_int`.", call. = FALSE)
+    }
+    lt_window <- dots[["tresh_int"]]
+    dots[which(dots_names == "tresh_int")] <- NULL
+    warning("`tresh_int` is deprecated; use `lt_window`.", call. = FALSE)
+  }
+
+  dots_names <- names(dots)
+  if (is.null(dots_names)) {
+    dots_names <- rep("", length(dots))
+  }
+
+  if ("thresh_change" %in% dots_names) {
+    if (has_new_thresh) {
+      stop("Use only one of `lt_thresh_change` and deprecated `thresh_change`.", call. = FALSE)
+    }
+    lt_thresh_change <- dots[["thresh_change"]]
+    dots[which(dots_names == "thresh_change")] <- NULL
+    warning("`thresh_change` is deprecated; use `lt_thresh_change`.", call. = FALSE)
+  }
+
+  list(
+    dots = dots,
+    lt_window = ltm_normalize_lt_window(lt_window),
+    lt_thresh_change = lt_thresh_change
+  )
+}
+
 
 # steps per year from the date vector (handles irregular cadence)
 ltm_steps_per_year <- function(dts) {
@@ -23,13 +95,7 @@ ltm_steps_per_year <- function(dts) {
   365.25 / dd
 }
 
-# Convert slope (per-step) to %/yr given a baseline level
-ltm_pct_slope <- function(slope_per_step, baseline, steps_per_year) {
-  if (!is.finite(slope_per_step) || !is.finite(baseline) ||
-      !is.finite(steps_per_year) || steps_per_year <= 0 ||
-      abs(baseline) < .Machine$double.eps) return(NA)
-  (slope_per_step * steps_per_year) / baseline * 100
-}
+## -------------------------------------------------------------------------------- ##
 
 
 ltm_get_validator_fun_label <- function(call_obj, arg_name, default = "-") {
@@ -209,6 +275,16 @@ print.ts_breaks_run <- function(x, digits = 4, ...) {
   invisible(x)
 }
 
+## -------------------------------------------------------------------------------- ##
+
+
+# Convert slope (per-step) to %/yr given a baseline level
+ltm_pct_slope <- function(slope_per_step, baseline, steps_per_year) {
+  if (!is.finite(slope_per_step) || !is.finite(baseline) ||
+      !is.finite(steps_per_year) || steps_per_year <= 0 ||
+      abs(baseline) < .Machine$double.eps) return(NA)
+  (slope_per_step * steps_per_year) / baseline * 100
+}
 
 #' Validate a breakpoint using a randomized short-term trend test
 #'
@@ -478,13 +554,13 @@ ltm_trend_validator_randomized <- function(ysa, dts, brk,
 #'   breakpoint detection when the series is long enough.
 #' @param s_window Integer. Seasonal window used by `stats::stl()` when
 #'   `season_adj = TRUE`.
-#' @param thresh_change Numeric. Maximum allowed percent change for the
-#'   long-term validator. More negative values indicate stronger declines.
 #' @param thresh_date Date or date-like value. The selected breakpoint must
 #'   occur on or after this date to be considered valid.
-#' @param tresh_int Optional integer. If provided, long-term validation is
-#'   computed using symmetric windows of this size around the break; otherwise
-#'   all observations before and after the break are used.
+#' @param lt_window Optional integer. If provided, long-term validation is
+#'   computed using symmetric windows of this size around the break. Use `NULL`
+#'   or `0` to use all observations before and after the break.
+#' @param lt_thresh_change Numeric. Maximum allowed percent change for the
+#'   long-term validator. More negative values indicate stronger declines.
 #' @param lt_fun Function. Aggregation function used by the long-term validator,
 #'   typically `median` or `mean`.
 #' @param st_window Optional integer. Half-window size for the short-term
@@ -548,21 +624,22 @@ ltm_ed_detect_breaks <- function(spidf,
                                  alpha          = 1,
                                  season_adj     = TRUE,
                                  s_window       = 30,
-                                 thresh_change  = -10,      # % threshold for original long-term check
                                  thresh_date,
-                                 tresh_int      = NULL,     # window for original long-term check (kept)
-                                 lt_fun     = median,
+                                 # --- long-term check ---
+                                 lt_window        = NULL,
+                                 lt_thresh_change = -10,
+                                 lt_fun           = median,
                                  # --- short-term check ---
-                                 st_window      = NULL,     # integer; if set, enables short-term validator
+                                 st_window        = NULL,     # integer; if set, enables short-term validator
                                  st_thresh_change = -10,     # % change threshold for short-term validator
-                                 st_fun         = median,   # aggregation function for short-term windows
+                                 st_fun           = median,   # aggregation function for short-term windows
                                  # --- trend check (randomized validator uses this window) ---
                                  trend_window   = NULL,     # integer; if set, enables trend validator
                                  trend_require_lower_level = TRUE, # require post mean < pre mean
                                  trend_rand_B             = 99,
                                  trend_rand_seed          = 11235,
                                  trend_post_pct_thresh    = -10,
-                                 trend_alpha              = 0.1,
+                                 trend_alpha              = 0.05,
                                  trend_deficit_tol        = 0.05,
                                  trend_min_prop_below     = 0.6,
                                  trend_avg_deficit_thresh = -1.5,
@@ -570,6 +647,15 @@ ltm_ed_detect_breaks <- function(spidf,
                                  break_select   = c("first", "first_after_date", "largest_drop"),
                                  ...
 ){
+  lt_args <- ltm_resolve_deprecated_lt_args(
+    list(...),
+    lt_window = lt_window,
+    lt_thresh_change = lt_thresh_change,
+    call = match.call(expand.dots = FALSE)
+  )
+  lt_window <- lt_args$lt_window
+  lt_thresh_change <- lt_args$lt_thresh_change
+
   stopifnot(inherits(spidf, "spidf"))
   if (!(ts_name %in% VALID_DATA_TYPES)) {
     stop("Invalid ts_name! Must be one of: ", paste(VALID_DATA_TYPES, collapse = ", "))
@@ -704,12 +790,12 @@ ltm_ed_detect_breaks <- function(spidf,
 
 if (break_select == "largest_drop") {
   changes <- sapply(brk_candidates, function(bi) {
-    if (is.null(tresh_int)) {
+    if (is.null(lt_window)) {
       pre_val  <- suppressWarnings(lt_fun(ysa[1:(bi - 1)], na.rm = TRUE))
       post_val <- suppressWarnings(lt_fun(ysa[(bi + 1):n], na.rm = TRUE))
     } else {
-      pre_rng  <- bound_idx(bi - tresh_int, bi - 1, n)
-      post_rng <- bound_idx(bi + 1, bi + tresh_int, n)
+      pre_rng  <- bound_idx(bi - lt_window, bi - 1, n)
+      post_rng <- bound_idx(bi + 1, bi + lt_window, n)
       pre_val  <- suppressWarnings(lt_fun(ysa[pre_rng],  na.rm = TRUE))
       post_val <- suppressWarnings(lt_fun(ysa[post_rng], na.rm = TRUE))
     }
@@ -726,20 +812,20 @@ brk_candidates[1]
   brk <- pick_break()
   break_date <- dts[brk]
 
-  # Original long-term validator (unchanged) ------------------------------
-  if (is.null(tresh_int)) {
+  # Long-term validator ----------------------------------------------------
+  if (is.null(lt_window)) {
     pre_break  <- suppressWarnings(lt_fun(ysa[1:(brk - 1)], na.rm = TRUE))
     post_break <- suppressWarnings(lt_fun(ysa[(brk + 1):n], na.rm = TRUE))
   } else {
-    pre_rng  <- bound_idx(brk - tresh_int, brk - 1, n)
-    post_rng <- bound_idx(brk + 1, brk + tresh_int, n)
+    pre_rng  <- bound_idx(brk - lt_window, brk - 1, n)
+    post_rng <- bound_idx(brk + 1, brk + lt_window, n)
     pre_break  <- suppressWarnings(lt_fun(ysa[pre_rng],  na.rm = TRUE))
     post_break <- suppressWarnings(lt_fun(ysa[post_rng], na.rm = TRUE))
   }
   break_magn <- pct_change(post_break, pre_break)
 
   lt_valid <- isTRUE(break_date >= thresh_date) &&
-    isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
+    isTRUE(is.finite(break_magn) && (break_magn <= lt_thresh_change))
 
   # --- short-term validator ----------------------------------------------
   st_valid <- FALSE
@@ -843,13 +929,14 @@ ltm_cpm_detect_breaks <- function(spidf,
                                   cpm_method = "Exponential",
                                   ARL0 = 500,
                                   thresh_date,
-                                  thresh_change = -10,
-                                  tresh_int = NULL,
-                                  lt_fun = median,
+                                  # --- long-term check ---
+                                  lt_window        = NULL,
+                                  lt_thresh_change = -10,
+                                  lt_fun           = median,
                                   # --- short-term check ---
-                                  st_window = NULL,
+                                  st_window        = NULL,
                                   st_thresh_change = -10,
-                                  st_fun = median,
+                                  st_fun           = median,
                                   # --- trend check (randomized validator uses this window) ---
                                   trend_window = NULL,
                                   trend_require_lower_level = TRUE,
@@ -861,6 +948,16 @@ ltm_cpm_detect_breaks <- function(spidf,
                                   trend_min_prop_below     = 0.6,
                                   trend_avg_deficit_thresh = -1.5,
                                   ...){
+  lt_args <- ltm_resolve_deprecated_lt_args(
+    list(...),
+    lt_window = lt_window,
+    lt_thresh_change = lt_thresh_change,
+    call = match.call(expand.dots = FALSE)
+  )
+  dots <- lt_args$dots
+  lt_window <- lt_args$lt_window
+  lt_thresh_change <- lt_args$lt_thresh_change
+
   stopifnot(inherits(spidf, "spidf"))
   if (!(ts_name %in% VALID_DATA_TYPES)) {
     stop("Invalid ts_name! Must be one of: ", paste(VALID_DATA_TYPES, collapse = ", "))
@@ -992,19 +1089,19 @@ ltm_cpm_detect_breaks <- function(spidf,
   break_date <- dts[brk]
 
   # long-term validator ---------------------------------------------------
-  if (is.null(tresh_int)) {
+  if (is.null(lt_window)) {
     pre_break  <- suppressWarnings(lt_fun(ysa[1:(brk - 1)], na.rm = TRUE))
     post_break <- suppressWarnings(lt_fun(ysa[(brk + 1):n], na.rm = TRUE))
   } else {
-    pre_rng  <- bound_idx(brk - tresh_int, brk - 1, n)
-    post_rng <- bound_idx(brk + 1,        brk + tresh_int, n)
+    pre_rng  <- bound_idx(brk - lt_window, brk - 1, n)
+    post_rng <- bound_idx(brk + 1,        brk + lt_window, n)
     pre_break  <- suppressWarnings(lt_fun(ysa[pre_rng],  na.rm = TRUE))
     post_break <- suppressWarnings(lt_fun(ysa[post_rng], na.rm = TRUE))
   }
   break_magn <- pct_change(post_break, pre_break)
 
   lt_valid <- isTRUE(break_date >= thresh_date) &&
-    isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
+    isTRUE(is.finite(break_magn) && (break_magn <= lt_thresh_change))
 
   # short-term validator --------------------------------------------------
   st_valid <- FALSE
@@ -1118,16 +1215,16 @@ ltm_bfast01_detect_breaks <- function(
     functional    = "max",
     order         = 3,
     thresh_date,
-    thresh_change = -10,
-    tresh_int     = NULL,
-    lt_fun    = median,
+    # --- long-term check ---
+    lt_window        = NULL,
+    lt_thresh_change = -10,
+    lt_fun           = median,
     # --- short-term check ---
     st_window            = NULL,
     st_thresh_change     = -5,
     st_fun               = median,
     # --- trend check (randomized validator) ---
     trend_window               = NULL,   # integer; if set, enables trend validator
-    trend_delta_thresh         = 0,      # (unused; kept for backward-compat)
     trend_require_lower_level  = TRUE,
     trend_rand_B               = 99,
     trend_rand_seed            = 11235,
@@ -1138,6 +1235,16 @@ ltm_bfast01_detect_breaks <- function(
     trend_avg_deficit_thresh   = -1.5,
     ...
 ) {
+  lt_args <- ltm_resolve_deprecated_lt_args(
+    list(...),
+    lt_window = lt_window,
+    lt_thresh_change = lt_thresh_change,
+    call = match.call(expand.dots = FALSE)
+  )
+  dots <- lt_args$dots
+  lt_window <- lt_args$lt_window
+  lt_thresh_change <- lt_args$lt_thresh_change
+
   stopifnot(inherits(spidf, "spidf"))
   if (!(ts_name %in% VALID_DATA_TYPES)) {
     stop("Invalid ts_name: ", ts_name)
@@ -1149,17 +1256,22 @@ ltm_bfast01_detect_breaks <- function(
   n   <- length(yts)
 
   # run bfast01 (detection on raw yts, as before) ----------------------
-  bf01 <- bfast::bfast01(
-    data       = yts,
-    formula    = formula,
-    test       = test,
-    level      = level,
-    aggregate  = aggregate,
-    trim       = trim,
-    bandwidth  = bandwidth,
-    functional = functional,
-    order      = order,
-    ...
+  bf01 <- do.call(
+    bfast::bfast01,
+    c(
+      list(
+        data = yts,
+        formula = formula,
+        test = test,
+        level = level,
+        aggregate = aggregate,
+        trim = trim,
+        bandwidth = bandwidth,
+        functional = functional,
+        order = order
+      ),
+      dots
+    )
   )
 
   # Extract break index
@@ -1260,13 +1372,13 @@ ltm_bfast01_detect_breaks <- function(
     season_used <- FALSE
   }
 
-  # Pre/post windows (original long-term validator) ---------------------
-  if (is.null(tresh_int)) {
+  # Pre/post windows for long-term validator ----------------------------
+  if (is.null(lt_window)) {
     pre  <- ysa[1:(brk - 1)]
     post <- ysa[(brk + 1):n]
   } else {
-    pre_rng  <- bound_idx(brk - tresh_int, brk - 1, n)
-    post_rng <- bound_idx(brk + 1, brk + tresh_int, n)
+    pre_rng  <- bound_idx(brk - lt_window, brk - 1, n)
+    post_rng <- bound_idx(brk + 1, brk + lt_window, n)
     pre  <- ysa[pre_rng]
     post <- ysa[post_rng]
   }
@@ -1277,7 +1389,7 @@ ltm_bfast01_detect_breaks <- function(
   break_magn <- pct_change(val_post, val_pre)
 
   lt_valid <- isTRUE(break_date >= thresh_date) &&
-    isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
+    isTRUE(is.finite(break_magn) && (break_magn <= lt_thresh_change))
 
   # Short-term validator -------------------------------------------------
   st_valid <- FALSE
@@ -1450,29 +1562,27 @@ diagnose_uncertainty <- function(df,
 
 # --- MCP wrapper with short-term trend validator -------------------------
 ltm_mcp_detect_breaks <- function(spidf,
-                                  ts_name = "spi",
+                                  ts_name    = "spi",
                                   season_adj = TRUE,
-                                  s_window = 30,
-                                  thresh_change = -10,
+                                  s_window   = 30,
                                   thresh_date,
-                                  lt_fun = median,
-
-                                  sample = "both",
-                                  n_chains = 3,
-                                  n_cores = 3,
-                                  n_adapt = 500,
-                                  n_iter = 1000,
+                                  sample     = "both",
+                                  n_chains   = 3,
+                                  n_cores    = 3,
+                                  n_adapt    = 500,
+                                  n_iter     = 1000,
                                   downsample = NULL,
-
+                                  # --- long-term check ---
+                                  lt_window        = NULL,
+                                  lt_thresh_change = -10,
+                                  lt_fun           = median,
                                   # --- short-term check ---
-                                  st_window = NULL,
+                                  st_window        = NULL,
                                   st_thresh_change = -10,
-                                  st_fun = median,
-
+                                  st_fun           = median,
                                   # --- trend check (randomized validator) ---
-                                  trend_window = NULL,      # integer; if set, enables trend validator
-                                  trend_delta_thresh = 0,   # (unused; kept for backward-compat)
-                                  trend_require_lower_level = TRUE,
+                                  trend_window               = NULL, # integer; if set, enables trend validator
+                                  trend_require_lower_level  = TRUE,
                                   trend_rand_B               = 99,
                                   trend_rand_seed            = 11235,
                                   trend_post_pct_thresh      = -10,
@@ -1481,6 +1591,16 @@ ltm_mcp_detect_breaks <- function(spidf,
                                   trend_min_prop_below       = 0.6,
                                   trend_avg_deficit_thresh   = -1.5,
                                   ...){
+  lt_args <- ltm_resolve_deprecated_lt_args(
+    list(...),
+    lt_window = lt_window,
+    lt_thresh_change = lt_thresh_change,
+    call = match.call(expand.dots = FALSE)
+  )
+  dots <- lt_args$dots
+  lt_window <- lt_args$lt_window
+  lt_thresh_change <- lt_args$lt_thresh_change
+
   stopifnot(inherits(spidf, "spidf"))
   if (!(ts_name %in% VALID_DATA_TYPES)) {
     stop("Invalid ts_name! Must be one of: ", paste(VALID_DATA_TYPES, collapse = ", "))
@@ -1534,17 +1654,22 @@ ltm_mcp_detect_breaks <- function(spidf,
   )
 
   # Fit MCP ---------------------------------------------------------------
-  fit_mcp <- mcp::mcp(
-    model,
-    data   = model_df,
-    par_x  = "di",
-    prior  = my_priors,
-    adapt  = n_adapt,
-    sample = sample,
-    chains = n_chains,
-    cores  = n_cores,
-    iter   = n_iter,
-    ...
+  fit_mcp <- do.call(
+    mcp::mcp,
+    c(
+      list(
+        model = model,
+        data = model_df,
+        par_x = "di",
+        prior = my_priors,
+        adapt = n_adapt,
+        sample = sample,
+        chains = n_chains,
+        cores = n_cores,
+        iter = n_iter
+      ),
+      dots
+    )
   )
 
   # Summaries & break index -----------------------------------------------
@@ -1639,12 +1764,19 @@ ltm_mcp_detect_breaks <- function(spidf,
   break_date <- dts[brk]
 
   # Long-term aggregation validator ---------------------------------------
-  pre_break  <- suppressWarnings(lt_fun(ysa[seq_len(brk - 1)], na.rm = TRUE))
-  post_break <- suppressWarnings(lt_fun(ysa[(brk + 1):n], na.rm = TRUE))
+  if (is.null(lt_window)) {
+    pre_break  <- suppressWarnings(lt_fun(ysa[seq_len(brk - 1)], na.rm = TRUE))
+    post_break <- suppressWarnings(lt_fun(ysa[(brk + 1):n], na.rm = TRUE))
+  } else {
+    pre_rng <- bound_idx(brk - lt_window, brk - 1, n)
+    post_rng <- bound_idx(brk + 1, brk + lt_window, n)
+    pre_break  <- suppressWarnings(lt_fun(ysa[pre_rng], na.rm = TRUE))
+    post_break <- suppressWarnings(lt_fun(ysa[post_rng], na.rm = TRUE))
+  }
   break_magn <- pct_change(post_break, pre_break)
 
   lt_valid <- isTRUE(break_date >= thresh_date) &&
-    isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
+    isTRUE(is.finite(break_magn) && (break_magn <= lt_thresh_change))
 
   # Short-term validator ---------------------------------------------------
   st_valid <- FALSE
@@ -1747,23 +1879,23 @@ ltm_mcp_detect_breaks <- function(spidf,
 
 ltm_strucchange_detect_breaks <- function(
     spidf,
-    ts_name = "spi",
+    ts_name    = "spi",
     season_adj = TRUE,
-    s_window = 30,
-    h = 0.15,
-    breaks = 1,
+    s_window   = 30,
+    h          = 0.15,
+    breaks     = 1,
     thresh_date,
-    thresh_change = -10,
-    tresh_int = NULL,
-    lt_fun = median,
+    # --- long-term check ---
+    lt_window        = NULL,
+    lt_thresh_change = -10,
+    lt_fun           = median,
     # --- short-term check ---
-    st_window = NULL,
+    st_window        = NULL,
     st_thresh_change = -10,
-    st_fun = median,
+    st_fun           = median,
     # --- trend check (randomized validator) ---
-    trend_window = NULL,                 # integer; if set, enables trend validator
-    trend_delta_thresh = 0,              # (unused; kept for backward-compat)
-    trend_require_lower_level = TRUE,
+    trend_window               = NULL,                 # integer; if set, enables trend validator
+    trend_require_lower_level  = TRUE,
     trend_rand_B               = 99,
     trend_rand_seed            = 11235,
     trend_post_pct_thresh      = -10,
@@ -1773,6 +1905,16 @@ ltm_strucchange_detect_breaks <- function(
     trend_avg_deficit_thresh   = -1.5,
     ...
 ) {
+  lt_args <- ltm_resolve_deprecated_lt_args(
+    list(...),
+    lt_window = lt_window,
+    lt_thresh_change = lt_thresh_change,
+    call = match.call(expand.dots = FALSE)
+  )
+  dots <- lt_args$dots
+  lt_window <- lt_args$lt_window
+  lt_thresh_change <- lt_args$lt_thresh_change
+
   # basic checks -----------------------------------------------------------
   stopifnot(inherits(spidf, "spidf"))
   if (!(ts_name %in% VALID_DATA_TYPES)) {
@@ -1839,7 +1981,17 @@ ltm_strucchange_detect_breaks <- function(
   }
 
   # detect structural break(s) --------------------------------------------
-  bp <- strucchangeRcpp::breakpoints(ysa ~ 1, h = h, breaks = breaks, ...)
+  bp <- do.call(
+    strucchangeRcpp::breakpoints,
+    c(
+      list(
+        formula = ysa ~ 1,
+        h = h,
+        breaks = breaks
+      ),
+      dots
+    )
+  )
 
   # no break case
   if (all(is.na(bp$breakpoints))) {
@@ -1927,12 +2079,12 @@ ltm_strucchange_detect_breaks <- function(
   break_date <- dts[brk]
 
   # long-term validator inputs --------------------------------------------
-  if (is.null(tresh_int)) {
+  if (is.null(lt_window)) {
     pre_vals  <- ysa[1:(brk - 1)]
     post_vals <- ysa[(brk + 1):n]
   } else {
-    pre_rng   <- bound_idx(brk - tresh_int, brk - 1, n)
-    post_rng  <- bound_idx(brk + 1, brk + tresh_int, n)
+    pre_rng   <- bound_idx(brk - lt_window, brk - 1, n)
+    post_rng  <- bound_idx(brk + 1, brk + lt_window, n)
     pre_vals  <- ysa[pre_rng]
     post_vals <- ysa[post_rng]
   }
@@ -1942,7 +2094,7 @@ ltm_strucchange_detect_breaks <- function(
   break_magn <- pct_change(val_post, val_pre)
 
   lt_valid <- isTRUE(break_date >= thresh_date) &&
-    isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
+    isTRUE(is.finite(break_magn) && (break_magn <= lt_thresh_change))
 
   # short-term validator ---------------------------------------------------
   st_valid <- FALSE
@@ -2043,22 +2195,22 @@ ltm_strucchange_detect_breaks <- function(
 
 
 ltm_wbs_detect_breaks <- function(spidf,
-                                  ts_name = "spi",
+                                  ts_name    = "spi",
                                   season_adj = TRUE,
-                                  s_window = 30,
+                                  s_window   = 30,
                                   thresh_date,
-                                  thresh_change = -10,
-                                  tresh_int = NULL,
-                                  lt_fun = median,
-                                  num_intervals = 1000,
+                                  # --- long-term check ---
+                                  lt_window        = NULL,
+                                  lt_thresh_change = -10,
+                                  lt_fun           = median,
+                                  num_intervals    = 1000,
                                   # --- short-term check ---
-                                  st_window = NULL,
+                                  st_window        = NULL,
                                   st_thresh_change = -10,
-                                  st_fun = median,
+                                  st_fun           = median,
                                   # --- trend check (randomized validator) ---
-                                  trend_window = NULL,                 # integer; if set, enables trend validator
-                                  trend_delta_thresh = 0,              # (unused; kept for backward-compat)
-                                  trend_require_lower_level = TRUE,
+                                  trend_window               = NULL,                 # integer; if set, enables trend validator
+                                  trend_require_lower_level  = TRUE,
                                   trend_rand_B               = 99,
                                   trend_rand_seed            = 11235,
                                   trend_post_pct_thresh      = -10,
@@ -2067,6 +2219,16 @@ ltm_wbs_detect_breaks <- function(spidf,
                                   trend_min_prop_below       = 0.6,
                                   trend_avg_deficit_thresh   = -1.5,
                                   ...) {
+  lt_args <- ltm_resolve_deprecated_lt_args(
+    list(...),
+    lt_window = lt_window,
+    lt_thresh_change = lt_thresh_change,
+    call = match.call(expand.dots = FALSE)
+  )
+  dots <- lt_args$dots
+  lt_window <- lt_args$lt_window
+  lt_thresh_change <- lt_args$lt_thresh_change
+
   stopifnot(inherits(spidf, "spidf"))
   if (!(ts_name %in% VALID_DATA_TYPES)) {
     stop("Invalid ts_name! Must be one of: ", paste(VALID_DATA_TYPES, collapse = ", "))
@@ -2131,7 +2293,13 @@ ltm_wbs_detect_breaks <- function(spidf,
 
   # Wild Binary Segmentation -----------------------------------------------
   wbs_fit <- wbs::wbs(ysa, numIntervals = num_intervals)
-  cp_fit  <- wbs::changepoints(wbs_fit, penalty = "ssic.penalty", ...)  # allow override via ...
+  cp_fit  <- do.call(
+    wbs::changepoints,
+    c(
+      list(wbs_fit, penalty = "ssic.penalty"),
+      dots
+    )
+  )
 
   # extract break candidates -----------------------------------------------
   if (length(cp_fit$cpt.th) == 0) {
@@ -2252,13 +2420,13 @@ ltm_wbs_detect_breaks <- function(spidf,
 
   break_date <- dts[brk]
 
-  # original long-term validator inputs -----------------------------------
-  if (is.null(tresh_int)) {
+  # long-term validator inputs --------------------------------------------
+  if (is.null(lt_window)) {
     pre_vals  <- ysa[1:(brk - 1)]
     post_vals <- ysa[(brk + 1):n]
   } else {
-    pre_rng   <- bound_idx(brk - tresh_int, brk - 1, n)
-    post_rng  <- bound_idx(brk + 1, brk + tresh_int, n)
+    pre_rng   <- bound_idx(brk - lt_window, brk - 1, n)
+    post_rng  <- bound_idx(brk + 1, brk + lt_window, n)
     pre_vals  <- ysa[pre_rng]
     post_vals <- ysa[post_rng]
   }
@@ -2268,7 +2436,7 @@ ltm_wbs_detect_breaks <- function(spidf,
   break_magn <- pct_change(val_post, val_pre)
 
   lt_valid <- isTRUE(break_date >= thresh_date) &&
-    isTRUE(is.finite(break_magn) && (break_magn <= thresh_change))
+    isTRUE(is.finite(break_magn) && (break_magn <= lt_thresh_change))
 
   # short-term validator ---------------------------------------------------
   st_valid <- FALSE
