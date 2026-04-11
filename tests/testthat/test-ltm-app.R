@@ -29,7 +29,8 @@ test_that("Percentile90 supports na.rm and returns a scalar numeric", {
 test_that("validator settings helper maps Shiny selections to detector arguments", {
   validator_args <- LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
     lt_fun_label = "90% percentile",
-    thresh_change = -10,
+    lt_window = 30,
+    lt_thresh_change = -10,
     st_window = 30,
     st_thresh_change = -12,
     st_fun_label = "Median",
@@ -38,7 +39,8 @@ test_that("validator settings helper maps Shiny selections to detector arguments
     trend_alpha = 0.1
   )
 
-  expect_equal(validator_args$thresh_change, -10)
+  expect_equal(validator_args$lt_window, 30L)
+  expect_equal(validator_args$lt_thresh_change, -10)
   expect_equal(validator_args$st_window, 30L)
   expect_equal(validator_args$st_thresh_change, -12)
   expect_equal(validator_args$trend_window, 30L)
@@ -55,7 +57,8 @@ test_that("validator settings helper maps Shiny selections to detector arguments
 test_that("validator settings helper allows zero-valued windows to disable optional validators", {
   validator_args <- LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
     lt_fun_label = "Median",
-    thresh_change = -10,
+    lt_window = 0,
+    lt_thresh_change = -10,
     st_window = 0,
     st_thresh_change = -10,
     st_fun_label = "Median",
@@ -64,6 +67,7 @@ test_that("validator settings helper allows zero-valued windows to disable optio
     trend_alpha = 0.1
   )
 
+  expect_null(validator_args$lt_window)
   expect_null(validator_args$st_window)
   expect_null(validator_args$trend_window)
 })
@@ -72,7 +76,8 @@ test_that("validator settings helper rejects unsupported thresholds", {
   expect_error(
     LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
       lt_fun_label = "Median",
-      thresh_change = 5,
+      lt_window = 30,
+      lt_thresh_change = 5,
       st_window = 30,
       st_thresh_change = -10,
       st_fun_label = "Median",
@@ -86,7 +91,8 @@ test_that("validator settings helper rejects unsupported thresholds", {
   expect_error(
     LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
       lt_fun_label = "Median",
-      thresh_change = -10,
+      lt_window = 30,
+      lt_thresh_change = -10,
       st_window = 30,
       st_thresh_change = -10,
       st_fun_label = "Median",
@@ -101,7 +107,8 @@ test_that("validator settings helper rejects unsupported thresholds", {
 test_that("validator call labels are written back onto stored runs", {
   validator_args <- LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
     lt_fun_label = "90% percentile",
-    thresh_change = -10,
+    lt_window = 30,
+    lt_thresh_change = -10,
     st_window = 30,
     st_thresh_change = -10,
     st_fun_label = "Median",
@@ -143,6 +150,8 @@ test_that("ltm_app UI exposes the new validator controls", {
   )
 
   expect_match(app_body, '"st_window"', fixed = TRUE)
+  expect_match(app_body, '"lt_window"', fixed = TRUE)
+  expect_match(app_body, '"lt_thresh_change"', fixed = TRUE)
   expect_match(app_body, '"st_thresh_change"', fixed = TRUE)
   expect_match(app_body, '"st_fun"', fixed = TRUE)
   expect_match(app_body, '"trend_window"', fixed = TRUE)

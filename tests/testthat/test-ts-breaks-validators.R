@@ -104,6 +104,27 @@ make_test_trend_valid_ts_breaks_run <- function() {
   )
 }
 
+test_that("detector long-term validator arguments are grouped consistently", {
+  detector_funs <- c(
+    "ltm_ed_detect_breaks",
+    "ltm_cpm_detect_breaks",
+    "ltm_bfast01_detect_breaks",
+    "ltm_mcp_detect_breaks",
+    "ltm_strucchange_detect_breaks",
+    "ltm_wbs_detect_breaks"
+  )
+
+  for (fn_name in detector_funs) {
+    arg_names <- names(formals(get(fn_name, envir = asNamespace("LargeTreeMonitoring"))))
+    start <- match("thresh_date", arg_names)
+    expect_identical(
+      arg_names[start:(start + 3L)],
+      c("thresh_date", "lt_window", "lt_thresh_change", "lt_fun"),
+      info = fn_name
+    )
+  }
+})
+
 test_that("ts_breaks stores validator flags with the renamed slots only", {
   ts_breaks_obj <- LargeTreeMonitoring:::ltm_ts_breaks(make_test_spidf())
   ts_breaks_obj <- LargeTreeMonitoring:::ltm_add_runs(ts_breaks_obj, make_test_ts_breaks_run())
