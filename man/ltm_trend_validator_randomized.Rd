@@ -42,8 +42,9 @@ null distribution.}
 
 \item{seed}{Optional integer seed for reproducible null sampling.}
 
-\item{post_pct_thresh}{Numeric. Threshold for the centered percent slope
-(%/year). Slopes less than or equal to this value support validation.}
+\item{post_pct_thresh}{Numeric. Threshold for the centered slope expressed in
+percent per year. Slopes less than or equal to this value support
+validation.}
 
 \item{alpha}{Numeric. One-sided p-value threshold used to compare the
 centered slope against the null distribution.}

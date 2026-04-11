@@ -233,8 +233,9 @@ print.ts_breaks_run <- function(x, digits = 4, ...) {
 #' @param B Integer. Number of random pre-break windows sampled to build the
 #'   null distribution.
 #' @param seed Optional integer seed for reproducible null sampling.
-#' @param post_pct_thresh Numeric. Threshold for the centered percent slope
-#'   (%/year). Slopes less than or equal to this value support validation.
+#' @param post_pct_thresh Numeric. Threshold for the centered slope expressed in
+#'   percent per year. Slopes less than or equal to this value support
+#'   validation.
 #' @param alpha Numeric. One-sided p-value threshold used to compare the
 #'   centered slope against the null distribution.
 #' @param deficit_tol Numeric. Relative tolerance used to define whether
@@ -453,6 +454,91 @@ ltm_trend_validator_randomized <- function(ysa, dts, brk,
 }
 
 
+#' Detect breakpoints using energy divisive segmentation
+#'
+#' Applies the energy divisive algorithm from \pkg{ecp} to a time series stored
+#' in an `spidf` object and returns a single selected breakpoint together with
+#' long-term, short-term, and optional randomized trend-based validation
+#' diagnostics.
+#'
+#' The selected series can be seasonally adjusted before breakpoint detection.
+#' When multiple candidate breakpoints are detected, one breakpoint is selected
+#' according to `break_select`.
+#'
+#' @param spidf An object of class `spidf`.
+#' @param ts_name Character. Name of the time-series column to analyze. Must be
+#'   one of `VALID_DATA_TYPES`.
+#' @param sig_lvl Numeric. Significance level passed to `ecp::e.divisive()`.
+#' @param R Integer. Number of permutations passed to `ecp::e.divisive()`.
+#' @param k Integer. Additional argument passed to `ecp::e.divisive()`.
+#' @param min_size Integer. Minimum cluster size passed to `ecp::e.divisive()`.
+#' @param alpha Numeric. Significance level adjustment parameter passed to
+#'   `ecp::e.divisive()`.
+#' @param season_adj Logical. If `TRUE`, applies seasonal adjustment before
+#'   breakpoint detection when the series is long enough.
+#' @param s_window Integer. Seasonal window used by `stats::stl()` when
+#'   `season_adj = TRUE`.
+#' @param thresh_change Numeric. Maximum allowed percent change for the
+#'   long-term validator. More negative values indicate stronger declines.
+#' @param thresh_date Date or date-like value. The selected breakpoint must
+#'   occur on or after this date to be considered valid.
+#' @param tresh_int Optional integer. If provided, long-term validation is
+#'   computed using symmetric windows of this size around the break; otherwise
+#'   all observations before and after the break are used.
+#' @param lt_fun Function. Aggregation function used by the long-term validator,
+#'   typically `median` or `mean`.
+#' @param st_window Optional integer. Half-window size for the short-term
+#'   validator. If `NULL`, short-term validation is skipped.
+#' @param st_thresh_change Numeric. Maximum allowed percent change for the
+#'   short-term validator.
+#' @param st_fun Function. Aggregation function used for the short-term
+#'   validator.
+#' @param trend_window Optional integer. Half-window size for the randomized
+#'   short-term trend validator. If `NULL`, trend validation is skipped.
+#' @param trend_require_lower_level Logical. If `TRUE`, the post-break mean must
+#'   be lower than the pre-break mean in the trend validator.
+#' @param trend_rand_B Integer. Number of randomized pre-break windows used to
+#'   build the null distribution in the trend validator.
+#' @param trend_rand_seed Optional integer seed for reproducible randomized
+#'   trend validation.
+#' @param trend_post_pct_thresh Numeric. Percent-slope threshold used by the
+#'   trend validator.
+#' @param trend_alpha Numeric. One-sided p-value threshold used by the trend
+#'   validator.
+#' @param trend_deficit_tol Numeric. Relative tolerance used to define
+#'   below-baseline post-break observations in the trend validator.
+#' @param trend_min_prop_below Numeric. Minimum proportion of post-break values
+#'   that must remain below baseline for depression-based trend validation.
+#' @param trend_avg_deficit_thresh Numeric. Maximum allowed mean post-break
+#'   deficit, in percent, for depression-based trend validation.
+#' @param break_select Character. Rule used to select a breakpoint when multiple
+#'   candidates are detected. One of `"first"`, `"first_after_date"`, or
+#'   `"largest_drop"`.
+#' @param ... Additional arguments reserved for future use.
+#'
+#' @return
+#' An object of class `ts_breaks_run`. It contains the selected breakpoint, the
+#' percent magnitude of the long-term change, flags for detected and validated
+#' breaks, the raw `ecp::e.divisive()` output, preprocessing metadata, and
+#' diagnostics from the short-term and randomized trend validators.
+#'
+#' @details
+#' If the input series is too short, contains too few observations after
+#' preprocessing, or no valid breakpoint candidates are found, the function
+#' returns a `ts_breaks_run` object with `has_breaks = FALSE` and validation
+#' fields set to `FALSE` or `NA` as appropriate.
+#'
+#' Missing values are interpolated before seasonal adjustment. Seasonal
+#' adjustment is only applied when `season_adj = TRUE` and the series is long
+#' enough for `stats::stl()`. Otherwise, the original series is used.
+#'
+#' The long-term validator compares aggregated values before and after the
+#' selected break. The short-term validator compares local pre- and post-break
+#' windows when `st_window` is provided. The randomized trend validator calls
+#' `ltm_trend_validator_randomized()` when `trend_window` is provided.
+#'
+#' @export
+#'
 ltm_ed_detect_breaks <- function(spidf,
                                  ts_name        = "spi",
                                  sig_lvl        = 0.05,
