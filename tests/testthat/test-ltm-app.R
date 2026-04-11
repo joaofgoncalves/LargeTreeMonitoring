@@ -19,6 +19,108 @@ test_that("ltm_app returns a shiny app object and registers assets", {
   )
 })
 
+test_that("Percentile90 supports na.rm and returns a scalar numeric", {
+  expect_equal(
+    LargeTreeMonitoring:::Percentile90(c(1, 2, 3, 4, 5, NA), na.rm = TRUE),
+    4.6
+  )
+})
+
+test_that("validator settings helper maps Shiny selections to detector arguments", {
+  validator_args <- LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
+    lt_fun_label = "90% percentile",
+    thresh_change = -10,
+    st_window = 30,
+    st_thresh_change = -12,
+    st_fun_label = "Median",
+    trend_window = 30,
+    trend_post_pct_thresh = -8,
+    trend_alpha = 0.1
+  )
+
+  expect_equal(validator_args$thresh_change, -10)
+  expect_equal(validator_args$st_window, 30L)
+  expect_equal(validator_args$st_thresh_change, -12)
+  expect_equal(validator_args$trend_window, 30L)
+  expect_equal(validator_args$trend_post_pct_thresh, -8)
+  expect_equal(validator_args$trend_alpha, 0.1)
+  expect_equal(validator_args$lt_fun(c(1, 2, 3, 4, 5), na.rm = TRUE), 4.6)
+  expect_equal(validator_args$st_fun(c(1, 2, 3), na.rm = TRUE), 2)
+  expect_identical(
+    attr(validator_args, "call_labels"),
+    list(lt_fun = quote(Percentile90), st_fun = quote(stats::median))
+  )
+})
+
+test_that("validator settings helper allows zero-valued windows to disable optional validators", {
+  validator_args <- LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
+    lt_fun_label = "Median",
+    thresh_change = -10,
+    st_window = 0,
+    st_thresh_change = -10,
+    st_fun_label = "Median",
+    trend_window = 0,
+    trend_post_pct_thresh = -10,
+    trend_alpha = 0.1
+  )
+
+  expect_null(validator_args$st_window)
+  expect_null(validator_args$trend_window)
+})
+
+test_that("validator settings helper rejects unsupported thresholds", {
+  expect_error(
+    LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
+      lt_fun_label = "Median",
+      thresh_change = 5,
+      st_window = 30,
+      st_thresh_change = -10,
+      st_fun_label = "Median",
+      trend_window = 30,
+      trend_post_pct_thresh = -10,
+      trend_alpha = 0.1
+    ),
+    "Long-term percent change threshold"
+  )
+
+  expect_error(
+    LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
+      lt_fun_label = "Median",
+      thresh_change = -10,
+      st_window = 30,
+      st_thresh_change = -10,
+      st_fun_label = "Median",
+      trend_window = 2,
+      trend_post_pct_thresh = -10,
+      trend_alpha = 0.1
+    ),
+    "Short-term trend window size"
+  )
+})
+
+test_that("validator call labels are written back onto stored runs", {
+  validator_args <- LargeTreeMonitoring:::ltm_collect_shiny_break_validator_args(
+    lt_fun_label = "90% percentile",
+    thresh_change = -10,
+    st_window = 30,
+    st_thresh_change = -10,
+    st_fun_label = "Median",
+    trend_window = 30,
+    trend_post_pct_thresh = -10,
+    trend_alpha = 0.1
+  )
+
+  run_obj <- structure(
+    list(call = quote(ltm_ed_detect_breaks(lt_fun = lt_fun, st_fun = st_fun))),
+    class = "ts_breaks_run"
+  )
+
+  run_obj <- LargeTreeMonitoring:::ltm_apply_validator_call_labels(run_obj, validator_args)
+
+  expect_identical(run_obj$call$lt_fun, quote(Percentile90))
+  expect_identical(run_obj$call$st_fun, quote(stats::median))
+})
+
 test_that("default startup loads sample tree choices", {
   config_path <- tempfile(fileext = ".json")
   file.copy(
@@ -32,6 +134,20 @@ test_that("default startup loads sample tree choices", {
   expect_true(nzchar(startup$config_path))
   expect_gt(length(startup$tree_state$choices), 1L)
   expect_null(startup$tree_state$message)
+})
+
+test_that("ltm_app UI exposes the new validator controls", {
+  app_body <- paste(
+    deparse(body(LargeTreeMonitoring::ltm_app), width.cutoff = 500L),
+    collapse = "\n"
+  )
+
+  expect_match(app_body, '"st_window"', fixed = TRUE)
+  expect_match(app_body, '"st_thresh_change"', fixed = TRUE)
+  expect_match(app_body, '"st_fun"', fixed = TRUE)
+  expect_match(app_body, '"trend_window"', fixed = TRUE)
+  expect_match(app_body, '"trend_post_pct_thresh"', fixed = TRUE)
+  expect_match(app_body, '"trend_alpha"', fixed = TRUE)
 })
 
 test_that("invalid tree list path falls back without crashing app creation", {

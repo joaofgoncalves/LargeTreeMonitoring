@@ -111,6 +111,156 @@ ltm_selected_tree_id <- function(location_id) {
   as.character(location_id)
 }
 
+ltm_validator_fun_choices <- function() {
+  c("Median", "90% percentile")
+}
+
+ltm_get_validator_fun <- function(label) {
+  if (!ltm_has_path_value(label)) {
+    stop("A validator aggregation function must be selected.")
+  }
+
+  switch(
+    as.character(label),
+    "Median" = stats::median,
+    "90% percentile" = Percentile90,
+    stop("Unsupported validator aggregation function: ", label)
+  )
+}
+
+ltm_get_validator_fun_call <- function(label) {
+  if (!ltm_has_path_value(label)) {
+    stop("A validator aggregation function must be selected.")
+  }
+
+  switch(
+    as.character(label),
+    "Median" = quote(stats::median),
+    "90% percentile" = quote(Percentile90),
+    stop("Unsupported validator aggregation function: ", label)
+  )
+}
+
+ltm_parse_validator_numeric <- function(value, field, min_value = NULL, max_value = NULL) {
+  if (is.null(value) || length(value) != 1L || is.na(value)) {
+    stop(field, " must be provided.")
+  }
+
+  value <- suppressWarnings(as.numeric(value))
+  if (!is.finite(value)) {
+    stop(field, " must be numeric.")
+  }
+
+  if (!is.null(min_value) && value < min_value) {
+    stop(field, " must be greater than or equal to ", min_value, ".")
+  }
+
+  if (!is.null(max_value) && value > max_value) {
+    stop(field, " must be less than or equal to ", max_value, ".")
+  }
+
+  value
+}
+
+ltm_parse_optional_validator_window <- function(value, field, min_value = 1L) {
+  if (is.null(value) || length(value) != 1L || is.na(value)) {
+    return(NULL)
+  }
+
+  value <- suppressWarnings(as.integer(value))
+  if (!is.finite(value)) {
+    stop(field, " must be a whole number.")
+  }
+
+  if (value <= 0L) {
+    return(NULL)
+  }
+
+  if (value < min_value) {
+    stop(field, " must be at least ", min_value, ", or 0 to disable it.")
+  }
+
+  value
+}
+
+ltm_collect_shiny_break_validator_args <- function(
+    lt_fun_label,
+    thresh_change,
+    st_window,
+    st_thresh_change,
+    st_fun_label,
+    trend_window,
+    trend_post_pct_thresh,
+    trend_alpha
+) {
+  lt_fun_call <- ltm_get_validator_fun_call(lt_fun_label)
+  st_fun_call <- ltm_get_validator_fun_call(st_fun_label)
+
+  out <- list(
+    thresh_change = ltm_parse_validator_numeric(
+      thresh_change,
+      field = "Long-term percent change threshold",
+      max_value = 0
+    ),
+    lt_fun = ltm_get_validator_fun(lt_fun_label),
+    st_window = ltm_parse_optional_validator_window(
+      st_window,
+      field = "Short-term window size",
+      min_value = 1L
+    ),
+    st_thresh_change = ltm_parse_validator_numeric(
+      st_thresh_change,
+      field = "Short-term percent change threshold",
+      max_value = 0
+    ),
+    st_fun = ltm_get_validator_fun(st_fun_label),
+    trend_window = ltm_parse_optional_validator_window(
+      trend_window,
+      field = "Short-term trend window size",
+      min_value = 3L
+    ),
+    trend_post_pct_thresh = ltm_parse_validator_numeric(
+      trend_post_pct_thresh,
+      field = "Short-term trend post-break percent threshold",
+      max_value = 0
+    ),
+    trend_alpha = ltm_parse_validator_numeric(
+      trend_alpha,
+      field = "Short-term trend alpha",
+      min_value = 0,
+      max_value = 1
+    )
+  )
+
+  attr(out, "call_labels") <- list(
+    lt_fun = lt_fun_call,
+    st_fun = st_fun_call
+  )
+
+  out
+}
+
+ltm_apply_validator_call_labels <- function(run_obj, validator_args) {
+  if (!inherits(run_obj, "ts_breaks_run") || is.null(run_obj$call)) {
+    return(run_obj)
+  }
+
+  call_labels <- attr(validator_args, "call_labels", exact = TRUE)
+  if (is.null(call_labels)) {
+    return(run_obj)
+  }
+
+  if (!is.null(call_labels$lt_fun)) {
+    run_obj$call$lt_fun <- call_labels$lt_fun
+  }
+
+  if (!is.null(call_labels$st_fun)) {
+    run_obj$call$st_fun <- call_labels$st_fun
+  }
+
+  run_obj
+}
+
 ltm_is_absolute_path <- function(path) {
   grepl("^(?:[A-Za-z]:|/|\\\\\\\\)", path)
 }
@@ -456,14 +606,6 @@ ltm_app <- function(config_path = NULL) {
           shiny::checkboxGroupInput(
             inputId = "break_methods",
             label   = "Break-Detection Methods",
-            # choices = c(
-            #   "Sequential Change Point Model" = "cpm",
-            #   "Energy Divisive"               = "ed",
-            #   "Bfast"                         = "bfast",
-            #   "Bayesian Change Points Model"  = "mcp",
-            #   "Structural Changes"            = "stc",
-            #   "Wild Binary Segmentation"      = "wbs"
-            # ),
 
             choiceNames = list(
               HTML("Change Point Model (cpm) <span title='Detects sequential changes using the cpm package'>[i]</span>"),
@@ -480,14 +622,61 @@ ltm_app <- function(config_path = NULL) {
 
           shiny::dateInput("break_thresh_date", "Break Threshold Date",
                     value = "2016-01-01"),
-          shiny::numericInput("thresh_change", "% Change threshold",
+          shiny::div(style = "font-weight: 600; margin-top: 8px;", "Long-term validator"),
+          shiny::numericInput("thresh_change", "Long-term % change threshold",
                        value = -10, max = 0),
 
           shiny::radioButtons(
             inputId = "lt_fun",
             label   = "Long-term aggregation function",
-            choices = c("Median","90% percentile"),
+            choices = ltm_validator_fun_choices(),
             selected = "Median"),
+
+          shiny::div(style = "font-weight: 600; margin-top: 8px;", "Short-term validator"),
+          shiny::numericInput(
+            "st_window",
+            "Short-term window size (observations per side, 0 disables)",
+            value = 30,
+            min = 0,
+            max = 365,
+            step = 1
+          ),
+          shiny::numericInput(
+            "st_thresh_change",
+            "Short-term % change threshold",
+            value = -10,
+            max = 0
+          ),
+          shiny::radioButtons(
+            inputId = "st_fun",
+            label   = "Short-term aggregation function",
+            choices = ltm_validator_fun_choices(),
+            selected = "Median"
+          ),
+
+          shiny::div(style = "font-weight: 600; margin-top: 8px;", "Short-term trend validator"),
+          shiny::numericInput(
+            "trend_window",
+            "Trend window size (observations per side, 0 disables)",
+            value = 30,
+            min = 0,
+            max = 365,
+            step = 1
+          ),
+          shiny::numericInput(
+            "trend_post_pct_thresh",
+            "Trend post-break % threshold",
+            value = -10,
+            max = 0
+          ),
+          shiny::numericInput(
+            "trend_alpha",
+            "Trend alpha",
+            value = 0.1,
+            min = 0,
+            max = 1,
+            step = 0.01
+          ),
 
           shiny::actionButton("analyze_breaks", "Analyze Breaks"),
 
@@ -535,7 +724,6 @@ ltm_app <- function(config_path = NULL) {
         tableOutput("break_results_table"),
 
         # Add this download button next to the table
-        #downloadButton("download_breaks_csv", "Download table to csv file")
         shiny::uiOutput("download_breaks_ui")  # <- dynamic button only when data is ready
 
       ),
@@ -1093,28 +1281,6 @@ ltm_app <- function(config_path = NULL) {
       })
     })
 
-
-    # observeEvent(input$save_params, {
-    #   tryCatch({
-    #     new_params <- fromJSON(input$json_editor, simplifyVector = TRUE)
-    #
-    #     # Save to file
-    #     write(toJSON(new_params, pretty = TRUE, auto_unbox = TRUE),
-    #           file = "params.json")
-    #
-    #     # Update the reactive global params (if you want real-time usage)
-    #     params <<- new_params
-    #
-    #     removeModal()
-    #     output$param_save_status <- renderText("[OK] Parameters saved")
-    #   }, error = function(e) {
-    #     output$param_save_status <- renderText(
-    #       paste("[ERROR] Error parsing JSON:", e$message)
-    #     )
-    #   })
-    # })
-
-
     observeEvent(input$save_params, {
       tryCatch({
         # input$json_editor is a JSON string typed/pasted by the user
@@ -1218,6 +1384,31 @@ ltm_app <- function(config_path = NULL) {
         return(NULL)
       }
 
+      validator_args <- tryCatch(
+        ltm_collect_shiny_break_validator_args(
+          lt_fun_label = input$lt_fun,
+          thresh_change = input$thresh_change,
+          st_window = input$st_window,
+          st_thresh_change = input$st_thresh_change,
+          st_fun_label = input$st_fun,
+          trend_window = input$trend_window,
+          trend_post_pct_thresh = input$trend_post_pct_thresh,
+          trend_alpha = input$trend_alpha
+        ),
+        error = function(error) {
+          shinyalert::shinyalert(
+            title = "Invalid Validator Settings",
+            text = conditionMessage(error),
+            type = "error"
+          )
+          NULL
+        }
+      )
+
+      if (is.null(validator_args)) {
+        return(NULL)
+      }
+
       shinyjs::delay(1000, {
 
         tsb_obj <- ltm_ts_breaks(spidf_data())
@@ -1225,15 +1416,8 @@ ltm_app <- function(config_path = NULL) {
         # Common parameters for all detection functions
         season_adj    <- TRUE
         s_window      <- input$s_window
-        thresh_change <- input$thresh_change
         thresh_date   <- input$break_thresh_date
         tresh_int     <- NULL
-
-        if(input$lt_fun == "Median"){
-          lt_fun <- stats::median
-        } else if(input$lt_fun == "90% percentile"){
-          lt_fun <- Percentile90
-        }
 
         ##
         ## Loop through all time series and algorithms for break detection selected
@@ -1242,104 +1426,122 @@ ltm_app <- function(config_path = NULL) {
         for (tsn in input$ts_names) {
           for (method in input$break_methods) {
 
-            if (method == "cpm") {
-              run_obj <- ltm_cpm_detect_breaks(
-                spidf         = spidf_data(),
-                season_adj    = season_adj,
-                ts_name       = tsn,
-                s_window      = s_window,
-                cpm_method    = params()$cpm$cpm_method,
-                ARL0          = params()$cpm$ARL0,
-                thresh_date   = thresh_date,
-                thresh_change = thresh_change,
-                tresh_int     = tresh_int,
-            lt_fun        = lt_fun
-              )
+            run_obj <- switch(
+              method,
+              cpm = do.call(
+                ltm_cpm_detect_breaks,
+                c(
+                  list(
+                    spidf = spidf_data(),
+                    season_adj = season_adj,
+                    ts_name = tsn,
+                    s_window = s_window,
+                    cpm_method = params()$cpm$cpm_method,
+                    ARL0 = params()$cpm$ARL0,
+                    thresh_date = thresh_date,
+                    tresh_int = tresh_int
+                  ),
+                  validator_args
+                )
+              ),
+              ed = do.call(
+                ltm_ed_detect_breaks,
+                c(
+                  list(
+                    spidf = spidf_data(),
+                    ts_name = tsn,
+                    season_adj = season_adj,
+                    s_window = s_window,
+                    sig_lvl = params()$ed$sig.lvl,
+                    R = params()$ed$R,
+                    k = params()$ed$k,
+                    min_size = params()$ed$min_size,
+                    alpha = params()$ed$alpha,
+                    thresh_date = thresh_date,
+                    tresh_int = tresh_int
+                  ),
+                  validator_args
+                )
+              ),
+              bfast = do.call(
+                ltm_bfast01_detect_breaks,
+                c(
+                  list(
+                    spidf = spidf_data(),
+                    ts_name = tsn,
+                    formula = stats::as.formula(params()$bfast$formula),
+                    s_window = s_window,
+                    test = params()$bfast$test,
+                    level = params()$bfast$level,
+                    aggregate = all,
+                    trim = NULL,
+                    bandwidth = params()$bfast$bandwidth,
+                    functional = params()$bfast$functional,
+                    order = params()$bfast$order,
+                    thresh_date = thresh_date,
+                    tresh_int = tresh_int
+                  ),
+                  validator_args
+                )
+              ),
+              mcp = do.call(
+                ltm_mcp_detect_breaks,
+                c(
+                  list(
+                    spidf = spidf_data(),
+                    ts_name = tsn,
+                    season_adj = season_adj,
+                    s_window = s_window,
+                    thresh_date = thresh_date,
+                    sample = params()$mcp$sample,
+                    n_chains = params()$mcp$n_chains,
+                    n_cores = params()$mcp$n_cores,
+                    n_adapt = params()$mcp$n_adapt,
+                    n_iter = params()$mcp$n_iter,
+                    downsample = params()$mcp$downsample
+                  ),
+                  validator_args
+                )
+              ),
+              stc = do.call(
+                ltm_strucchange_detect_breaks,
+                c(
+                  list(
+                    spidf = spidf_data(),
+                    ts_name = tsn,
+                    season_adj = season_adj,
+                    s_window = s_window,
+                    h = params()$stc$h,
+                    breaks = params()$stc$breaks,
+                    thresh_date = thresh_date,
+                    tresh_int = tresh_int
+                  ),
+                  validator_args
+                )
+              ),
+              wbs = do.call(
+                ltm_wbs_detect_breaks,
+                c(
+                  list(
+                    spidf = spidf_data(),
+                    ts_name = tsn,
+                    season_adj = season_adj,
+                    s_window = s_window,
+                    thresh_date = thresh_date,
+                    tresh_int = tresh_int,
+                    num_intervals = params()$wbs$num_intervals
+                  ),
+                  validator_args
+                )
+              ),
+              NULL
+            )
 
-            } else if (method == "ed") {
-              run_obj <- ltm_ed_detect_breaks(
-                spidf         = spidf_data(),
-                ts_name       = tsn,
-                season_adj    = season_adj,
-                s_window      = s_window,
-                sig.lvl       = params()$ed$sig.lvl,
-                R             = params()$ed$R,
-                k             = params()$ed$k,
-                min_size      = params()$ed$min_size,
-                alpha         = params()$ed$alpha,
-                thresh_date   = thresh_date,
-                thresh_change = thresh_change,
-                tresh_int     = tresh_int,
-            lt_fun        = lt_fun
-              )
-
-            } else if (method == "bfast") {
-              run_obj <- ltm_bfast01_detect_breaks(
-                spidf         = spidf_data(),
-                ts_name       = tsn,
-                formula       = stats::as.formula(params()$bfast$formula),
-                s_window      = s_window,
-                test          = params()$bfast$test,
-                level         = params()$bfast$level,
-                aggregate     = all,
-                trim          = NULL,
-                bandwidth     = params()$bfast$bandwidth,
-                functional    = params()$bfast$functional,
-                order         = params()$bfast$order,
-                thresh_date   = thresh_date,
-                thresh_change = thresh_change,
-                tresh_int     = tresh_int,
-            lt_fun        = lt_fun
-              )
-
-
-            } else if (method == "mcp") {
-              run_obj <- ltm_mcp_detect_breaks(
-                spidf         = spidf_data(),
-                ts_name       = tsn,
-                season_adj    = season_adj,
-                s_window      = s_window,
-                thresh_change = thresh_change,
-                thresh_date   = thresh_date,
-                sample        = params()$mcp$sample,
-                n_chains      = params()$mcp$n_chains,
-                n_cores       = params()$mcp$n_cores,
-                n_adapt       = params()$mcp$n_adapt,
-                n_iter        = params()$mcp$n_iter,
-                downsample    = params()$mcp$downsample
-              )
-
-            } else if (method == "stc") {
-              run_obj <- ltm_strucchange_detect_breaks(
-                spidf         = spidf_data(),
-                ts_name       = tsn,
-                season_adj    = season_adj,
-                s_window      = s_window,
-                h             = params()$stc$h,
-                breaks        = params()$stc$breaks,
-                thresh_date   = thresh_date,
-                thresh_change = thresh_change,
-                tresh_int     = tresh_int,
-            lt_fun        = lt_fun
-              )
-
-            } else if (method == "wbs") {
-              run_obj <- ltm_wbs_detect_breaks(
-                spidf         = spidf_data(),
-                ts_name       = tsn,
-                season_adj    = season_adj,
-                s_window      = s_window,
-                thresh_date   = thresh_date,
-                thresh_change = thresh_change,
-                tresh_int     = tresh_int,
-            lt_fun        = lt_fun,
-                num_intervals = params()$wbs$num_intervals
-              )
-            }
-
-            else {
+            if (is.null(run_obj)) {
               next
             }
+
+            run_obj <- ltm_apply_validator_call_labels(run_obj, validator_args)
 
             tsb_obj <- ltm_add_runs(tsb_obj, run_obj)
           }
