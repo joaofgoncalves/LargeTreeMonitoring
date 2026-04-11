@@ -729,11 +729,15 @@ ltm_app <- function(config_path = NULL) {
         shiny::sidebarPanel(
           width = 12,  # use full width inside the resizable container
 
-          # Google Earth Engine input
-          #textInput("user_name", "GEE User Name", value = ""),
+          # Input point data --------------------------------------------------------------------#
+
+          shiny::strong("SELECT POINT FOR ANALYSIS"),
+          shiny::br(),
+          shiny::br(),
 
           # Location or Tree ID from pre-existing list
           shiny::uiOutput("coordinate_source_ui"),
+
           shiny::selectInput("location_id", "Select Location ID",
                       choices = tree_ids, selectize = TRUE, selected = "---"),
           uiOutput("tree_list_warning"),
@@ -741,20 +745,34 @@ ltm_app <- function(config_path = NULL) {
           shiny::numericInput("latitude", "Latitude", value = 41.720898),
           shiny::numericInput("longitude", "Longitude", value = -8.747039),
 
-          shiny::actionButton("choose_coords", "",
-                       icon = shiny::icon("map-location-dot"),
-                       style = "margin-bottom: 8px;"),
+          shiny::p("Select point from map:",
+                   shiny::actionButton("choose_coords", "",
+                                       icon = shiny::icon("map-location-dot"),
+                                       style = "margin-bottom: 8px;"),
+                   class = "control-label"),
+
+
           shiny::uiOutput("coordinate_source_status"),
 
-          shiny::dateInput("start_date", "Start Date", value = "2015-01-01"),
-          shiny::dateInput("end_date", "End Date", value = "2024-12-31"),
-          shiny::selectInput("spi", "Spectral Index", choices = c("NDVI", "EVI", "EVI2", "NBR", "NDRE")),
+          # Set dates
+          shiny::dateInput("start_date", tags$span(shiny::icon("calendar"),"Start Date"), value = "2015-01-01"),
+          shiny::dateInput("end_date",   tags$span(shiny::icon("calendar"),"End Date"), value = "2024-12-31"),
+
+          # Spectral index and pro level to use
+          shiny::selectInput("spi", tags$span(shiny::icon("buffer"),"Spectral Index"), choices = c("NDVI", "EVI", "EVI2", "NBR", "NDRE")),
           shiny::selectInput("proc_level", "Processing Level", choices = c("L1C","L2A")),
+
+          # Get data time series button
           shiny::actionButton("fetch_data", "Fetch Time Series Data"),
 
-          # Data regularization
+          # Data regularization ----------------------------------------------------------------- #
           shiny::hr(),
-          shiny::selectInput("regularize_method", "Regularization Method",
+          shiny::strong("DATA PREPROCESSING"),
+          shiny::br(),
+          shiny::br(),
+
+          shiny::selectInput("regularize_method", tags$span(shiny::icon("chart-bar"),
+                                                            "Regularization Method"),
                       choices = c("linear", "spline", "stine",
                                   "mean", "kalman", "locf", "nocb")),
           shiny::checkboxInput("use_cloud_mask", "Use Cloud Mask", value = TRUE),
@@ -762,9 +780,10 @@ ltm_app <- function(config_path = NULL) {
           shiny::actionButton("regularize", "Regularize/interpolate Time Series"),
 
           # Moving window analysis
-          shiny::hr(),
+          shiny::br(),
+          shiny::br(),
 
-          shiny::selectInput("quant", "Moving Window Quantile",
+          shiny::selectInput("quant", tags$span(shiny::icon("chart-line"),"Moving Window Quantile"),
                       choices = c(0.95, 0.9, 0.75)),
           shiny::numericInput("win_size", "Window Size (days)",
                        value = 15, min = 5, max = 180),
@@ -773,7 +792,7 @@ ltm_app <- function(config_path = NULL) {
 
           # Whittaker time series smoothing
           shiny::hr(),
-          shiny::numericInput("lambda", "Whittaker Lambda",
+          shiny::numericInput("lambda", tags$span(shiny::icon("chart-line"),"Whittaker Smoothing Lambda"),
                        value = 20000, min = 1),
           shiny::numericInput("quantile_thresh", "Whittaker Quantile Threshold",
                        value = 0.35, min = 0.01, max = 1),
@@ -782,9 +801,13 @@ ltm_app <- function(config_path = NULL) {
           shiny::actionButton("apply_whittaker", "Apply Whittaker Smoother"),
 
 
-          # Break Detection component
+          # Break Detection component -----------------------------------------------------#
           # -- NEW: Break Detection UI inputs --
           shiny::hr(),
+          shiny::strong("BREAKPOINT DETECTION ANALYSIS"),
+          shiny::br(),
+          shiny::br(),
+
           shiny::checkboxGroupInput(
             "ts_names", "Select Time Series Type(s)",
             choices = c(
@@ -909,7 +932,7 @@ ltm_app <- function(config_path = NULL) {
 
           ## Parameter editing
           shiny::hr(),
-          shiny::p(emoji_html("2699"), "Configure parameters"),
+          tags$span(shiny::icon("gear"), "Configure parameters"),
           shiny::actionButton("edit_params", "Edit parameters"),
           shiny::verbatimTextOutput("param_save_status")
 
@@ -1038,8 +1061,8 @@ ltm_app <- function(config_path = NULL) {
           "ltm-coordinate-status",
           if (isTRUE(warning)) "ltm-coordinate-status-warning" else ""
         ),
-        tags$strong("Coordinate source"),
-        tags$br(),
+        #tags$strong("Coordinates source:"),
+        #tags$br(),
         text
       )
     }
@@ -1055,7 +1078,8 @@ ltm_app <- function(config_path = NULL) {
 
       shiny::radioButtons(
         "coord_source",
-        "Coordinate source",
+        #tags$span(emoji_html("1F4CD"), "Coordinate source"),
+        tags$span(shiny::icon("map-pin"), "Coordinate source:", class = "control-label"),
         choices = choices,
         selected = selected
       )
@@ -1081,7 +1105,7 @@ ltm_app <- function(config_path = NULL) {
 
       coordinate_status_div(
         sprintf(
-          "Fetch data will use %s: %.6f, %.6f",
+          "Point coordinates will use %s: %.6f, %.6f",
           request$status_label,
           request$lat,
           request$lon
