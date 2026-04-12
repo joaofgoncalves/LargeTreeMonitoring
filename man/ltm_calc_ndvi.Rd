@@ -7,15 +7,15 @@
 ltm_calc_ndvi(img)
 }
 \arguments{
-\item{img}{An `ee$Image` object representing a Sentinel-2 image.}
+\item{img}{An \code{ee$Image} object representing a Sentinel-2 image.}
 }
 \value{
-An `ee$Image` with two bands: `NDVI` and `cloud_mask`.
+An \code{ee$Image} with two bands: \code{NDVI} and \code{cloud_mask}.
 }
 \description{
-Computes the normalized difference vegetation index (NDVI) from the `NIR`
-and `Red` bands of a Sentinel-2 image and adds a binary cloud mask derived
-from the `QA60` band. The output preserves the original image properties and
+Computes the normalized difference vegetation index (NDVI) from the \code{NIR}
+and \code{Red} bands of a Sentinel-2 image and adds a binary cloud mask derived
+from the \code{QA60} band. The output preserves the original image properties and
 acquisition time.
 }
 \keyword{internal}

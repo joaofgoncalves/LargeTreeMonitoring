@@ -7,15 +7,15 @@
 ltm_calc_evi(img)
 }
 \arguments{
-\item{img}{An `ee$Image` object representing a Sentinel-2 image.}
+\item{img}{An \code{ee$Image} object representing a Sentinel-2 image.}
 }
 \value{
-An `ee$Image` with two bands: `EVI` and `cloud_mask`.
+An \code{ee$Image} with two bands: \code{EVI} and \code{cloud_mask}.
 }
 \description{
-Computes the enhanced vegetation index (EVI) from the `NIR`, `Red`, and
-`Blue` bands of a Sentinel-2 image and adds a binary cloud mask derived from
-the `QA60` band. The output preserves the original image properties and
+Computes the enhanced vegetation index (EVI) from the \code{NIR}, \code{Red}, and
+\code{Blue} bands of a Sentinel-2 image and adds a binary cloud mask derived from
+the \code{QA60} band. The output preserves the original image properties and
 acquisition time.
 }
 \keyword{internal}

@@ -1,4 +1,10 @@
 
+#' Render Unicode code points as HTML entities
+#'
+#' @param ... Hexadecimal Unicode code-point strings.
+#' @return An `htmltools::HTML` object containing the encoded entities.
+#' @keywords internal
+#' @noRd
 emoji_html <- function(...) {
   cps <- toupper(unlist(list(...), use.names = FALSE))
   ok <- grepl("^[0-9A-F]+$", cps)
@@ -8,6 +14,11 @@ emoji_html <- function(...) {
   htmltools::HTML(paste0("&#x", cps, ";", collapse = ""))
 }
 
+#' Locate the packaged default Shiny parameter file
+#'
+#' @return Character scalar path to `params-default.json` in `inst/extdata`.
+#' @keywords internal
+#' @noRd
 ltm_default_params_path <- function() {
   system.file(
     "extdata", "params-default.json",
@@ -16,6 +27,11 @@ ltm_default_params_path <- function() {
   )
 }
 
+#' Locate the packaged sample tree-list file
+#'
+#' @return Character scalar path to `_SAMPLE_TREE_LIST_.csv` in `inst/extdata`.
+#' @keywords internal
+#' @noRd
 ltm_default_csv_path <- function() {
   system.file(
     "extdata", "_SAMPLE_TREE_LIST_.csv",
@@ -24,16 +40,38 @@ ltm_default_csv_path <- function() {
   )
 }
 
+#' Get the user configuration directory
+#'
+#' Returns the platform-specific user configuration directory used by
+#' LargeTreeMonitoring and creates it if needed. The location is resolved with
+#' [tools::R_user_dir()] using `which = "config"`.
+#'
+#' @return Normalized character scalar path to the package configuration
+#'   directory.
+#' @family cache and configuration helpers
+#' @export
 ltm_config_dir <- function() {
   path <- tools::R_user_dir("LargeTreeMonitoring", which = "config")
   dir.create(path, recursive = TRUE, showWarnings = FALSE)
   path
 }
 
+#' Get the Shiny parameter file path
+#'
+#' @return Character scalar path to the user-level `params.json` file.
+#' @keywords internal
+#' @noRd
 ltm_params_path <- function() {
   file.path(ltm_config_dir(), "params.json")
 }
 
+#' Initialize the Shiny parameter file
+#'
+#' @param overwrite Logical scalar. If `TRUE`, replace an existing user
+#'   parameter file with the packaged default.
+#' @return Character scalar path to the initialized parameter file.
+#' @keywords internal
+#' @noRd
 ltm_init_params <- function(overwrite = FALSE) {
   target <- ltm_params_path()
 
@@ -44,10 +82,23 @@ ltm_init_params <- function(overwrite = FALSE) {
   target
 }
 
+#' Read Shiny parameters from JSON
+#'
+#' @param path Character scalar path to a JSON parameter file.
+#' @return A list containing the parsed parameter values.
+#' @keywords internal
+#' @noRd
 ltm_read_params <- function(path = ltm_params_path()) {
   jsonlite::read_json(path, simplifyVector = TRUE)
 }
 
+#' Write Shiny parameters to JSON
+#'
+#' @param params List of parameter values to serialize.
+#' @param path Character scalar destination path.
+#' @return Invisibly returns `path`.
+#' @keywords internal
+#' @noRd
 ltm_write_params <- function(params, path = ltm_params_path()) {
   jsonlite::write_json(
     params,
@@ -58,11 +109,28 @@ ltm_write_params <- function(params, path = ltm_params_path()) {
   invisible(path)
 }
 
+#' Test whether a directory can be created and written
+#'
+#' @param path Character scalar directory path.
+#' @return Logical scalar indicating whether `path` exists and is writable.
+#' @keywords internal
+#' @noRd
 ltm_is_writable_dir <- function(path) {
   dir.create(path, recursive = TRUE, showWarnings = FALSE)
   dir.exists(path) && file.access(path, mode = 2) == 0
 }
 
+#' Get the cache directory
+#'
+#' Resolves the writable cache directory used by LargeTreeMonitoring. Candidate
+#' locations are checked in order: option `LargeTreeMonitoring.cache_dir`,
+#' environment variable `LTM_CACHE_DIR`, the platform-specific R user cache
+#' directory, and the package's legacy `ltm_cache` directory under the current
+#' working directory.
+#'
+#' @return Normalized character scalar path to a writable cache directory.
+#' @family cache and configuration helpers
+#' @export
 ltm_cache_dir <- function() {
   option_path <- getOption("LargeTreeMonitoring.cache_dir")
   env_path <- Sys.getenv("LTM_CACHE_DIR", unset = "")
@@ -86,8 +154,20 @@ ltm_cache_dir <- function() {
   stop("Could not create a writable cache directory for LargeTreeMonitoring.")
 }
 
+#' Shiny resource path prefix
+#'
+#' Internal prefix used when registering packaged `www` assets with Shiny.
+#'
+#' @keywords internal
+#' @noRd
 ltm_app_resource_prefix <- "ltm-www"
 
+#' Register packaged Shiny web resources
+#'
+#' @return Invisibly returns the path to the installed `www` resource
+#'   directory.
+#' @keywords internal
+#' @noRd
 ltm_register_app_resources <- function() {
   resource_dir <- system.file("www", package = "LargeTreeMonitoring")
 
@@ -104,14 +184,34 @@ ltm_register_app_resources <- function() {
   invisible(resource_dir)
 }
 
+#' Build a Shiny resource URL for a packaged asset
+#'
+#' @param file_name Character scalar file name under the packaged `www`
+#'   directory.
+#' @return Character scalar resource URL relative to the Shiny app.
+#' @keywords internal
+#' @noRd
 ltm_app_asset <- function(file_name) {
   paste0(ltm_app_resource_prefix, "/", file_name)
 }
 
+#' Check whether a path-like value is usable
+#'
+#' @param path Candidate path value.
+#' @return Logical scalar indicating whether `path` is a non-empty scalar.
+#' @keywords internal
+#' @noRd
 ltm_has_path_value <- function(path) {
   !is.null(path) && length(path) == 1L && !is.na(path) && nzchar(path)
 }
 
+#' Normalize the selected tree identifier from Shiny input
+#'
+#' @param location_id Selected location identifier from the app.
+#' @return Character scalar tree identifier, or `NULL` for blank and placeholder
+#'   selections.
+#' @keywords internal
+#' @noRd
 ltm_selected_tree_id <- function(location_id) {
   if (!ltm_has_path_value(location_id) || identical(location_id, "---")) {
     return(NULL)
@@ -120,14 +220,31 @@ ltm_selected_tree_id <- function(location_id) {
   as.character(location_id)
 }
 
+#' Label the manual coordinate source
+#'
+#' @return Character scalar used in Shiny coordinate-source choices.
+#' @keywords internal
+#' @noRd
 ltm_coord_source_manual <- function() {
   "manual"
 }
 
+#' Label the tree-list coordinate source
+#'
+#' @return Character scalar used in Shiny coordinate-source choices.
+#' @keywords internal
+#' @noRd
 ltm_coord_source_tree_list <- function() {
   "tree_list"
 }
 
+#' Build coordinate-source choices for the Shiny app
+#'
+#' @param tree_list_available Logical scalar indicating whether a usable tree
+#'   list is loaded.
+#' @return Named character vector of coordinate-source labels.
+#' @keywords internal
+#' @noRd
 ltm_coord_source_choices <- function(tree_list_available = TRUE) {
   choices <- c("Manual / map coordinates" = ltm_coord_source_manual())
 
@@ -138,10 +255,24 @@ ltm_coord_source_choices <- function(tree_list_available = TRUE) {
   choices
 }
 
+#' Check whether a tree-list state contains selectable trees
+#'
+#' @param tree_state List returned by the tree-list loading helpers.
+#' @return Logical scalar.
+#' @keywords internal
+#' @noRd
 ltm_tree_list_available <- function(tree_state) {
   !is.null(tree_state$data) && is.null(tree_state$message)
 }
 
+#' Validate a latitude and longitude pair
+#'
+#' @param latitude Numeric latitude candidate.
+#' @param longitude Numeric longitude candidate.
+#' @return Invisibly returns `TRUE` when both values are finite and within
+#'   geographic coordinate bounds; otherwise raises an error.
+#' @keywords internal
+#' @noRd
 ltm_validate_coordinate_pair <- function(latitude, longitude) {
   lat <- suppressWarnings(as.numeric(latitude))
   lon <- suppressWarnings(as.numeric(longitude))
@@ -157,6 +288,14 @@ ltm_validate_coordinate_pair <- function(latitude, longitude) {
   list(lat = lat, lon = lon)
 }
 
+#' Extract a tree location from loaded tree-list state
+#'
+#' @param tree_state List containing tree-list data and status metadata.
+#' @param tree_id Character scalar tree identifier.
+#' @return Named list containing tree identifier and coordinates, or `NULL`
+#'   when the identifier is absent or unavailable.
+#' @keywords internal
+#' @noRd
 ltm_get_tree_location <- function(tree_state, tree_id) {
   selected_tree_id <- ltm_selected_tree_id(tree_id)
 
@@ -218,6 +357,16 @@ ltm_get_tree_location <- function(tree_state, tree_id) {
   )
 }
 
+#' Resolve a Shiny coordinate request
+#'
+#' @param coord_source Selected coordinate source.
+#' @param location_id Selected tree identifier.
+#' @param latitude Manual latitude value.
+#' @param longitude Manual longitude value.
+#' @param tree_state Loaded tree-list state.
+#' @return A list with `tree_id`, `latitude`, `longitude`, and `source`.
+#' @keywords internal
+#' @noRd
 ltm_resolve_coordinate_request <- function(
     coord_source,
     location_id,
@@ -258,10 +407,21 @@ ltm_resolve_coordinate_request <- function(
   )
 }
 
+#' List aggregation functions available in Shiny controls
+#'
+#' @return Named character vector mapping user-facing labels to function labels.
+#' @keywords internal
+#' @noRd
 ltm_validator_fun_choices <- function() {
   c("Median", "90% percentile")
 }
 
+#' Resolve a validator aggregation function from a label
+#'
+#' @param label Character scalar selected in Shiny controls.
+#' @return Function object used for break validation.
+#' @keywords internal
+#' @noRd
 ltm_get_validator_fun <- function(label) {
   if (!ltm_has_path_value(label)) {
     stop("A validator aggregation function must be selected.")
@@ -275,6 +435,12 @@ ltm_get_validator_fun <- function(label) {
   )
 }
 
+#' Resolve the call label for a validator aggregation function
+#'
+#' @param label Character scalar selected in Shiny controls.
+#' @return Character scalar suitable for inclusion in a call expression.
+#' @keywords internal
+#' @noRd
 ltm_get_validator_fun_call <- function(label) {
   if (!ltm_has_path_value(label)) {
     stop("A validator aggregation function must be selected.")
@@ -288,6 +454,15 @@ ltm_get_validator_fun_call <- function(label) {
   )
 }
 
+#' Parse and validate numeric Shiny validator input
+#'
+#' @param value Candidate numeric value.
+#' @param field Character scalar field name used in error messages.
+#' @param min_value Optional numeric lower bound.
+#' @param max_value Optional numeric upper bound.
+#' @return Numeric scalar.
+#' @keywords internal
+#' @noRd
 ltm_parse_validator_numeric <- function(value, field, min_value = NULL, max_value = NULL) {
   if (is.null(value) || length(value) != 1L || is.na(value)) {
     stop(field, " must be provided.")
@@ -309,6 +484,14 @@ ltm_parse_validator_numeric <- function(value, field, min_value = NULL, max_valu
   value
 }
 
+#' Parse an optional validator window from Shiny input
+#'
+#' @param value Candidate value; blank values disable the window.
+#' @param field Character scalar field name used in error messages.
+#' @param min_value Integer lower bound for non-empty values.
+#' @return Integer scalar window size, or `NULL`.
+#' @keywords internal
+#' @noRd
 ltm_parse_optional_validator_window <- function(value, field, min_value = 1L) {
   if (is.null(value) || length(value) != 1L || is.na(value)) {
     return(NULL)
@@ -330,6 +513,23 @@ ltm_parse_optional_validator_window <- function(value, field, min_value = 1L) {
   value
 }
 
+#' Collect break-validator arguments from Shiny inputs
+#'
+#' @param lt_fun_label Long-term aggregation function label.
+#' @param lt_window Long-term window input.
+#' @param lt_thresh_change Long-term change threshold input.
+#' @param st_window Short-term window input.
+#' @param st_thresh_change Short-term change threshold input.
+#' @param st_fun_label Short-term aggregation function label.
+#' @param trend_window Trend window input.
+#' @param trend_post_pct_thresh Trend slope threshold input.
+#' @param trend_alpha Trend-validator alpha input.
+#' @param trend_deficit_tol Deficit-tolerance input.
+#' @param trend_min_prop_below Minimum post-break proportion input.
+#' @param trend_avg_deficit_thresh Average deficit threshold input.
+#' @return List of normalized arguments and display labels.
+#' @keywords internal
+#' @noRd
 ltm_collect_shiny_break_validator_args <- function(
     lt_fun_label,
     lt_window,
@@ -413,6 +613,14 @@ ltm_collect_shiny_break_validator_args <- function(
   out
 }
 
+#' Attach validator call labels to a run object
+#'
+#' @param run_obj A `ts_breaks_run` object.
+#' @param validator_args List returned by
+#'   `ltm_collect_shiny_break_validator_args()`.
+#' @return The modified `run_obj`.
+#' @keywords internal
+#' @noRd
 ltm_apply_validator_call_labels <- function(run_obj, validator_args) {
   if (!inherits(run_obj, "ts_breaks_run") || is.null(run_obj$call)) {
     return(run_obj)
@@ -434,10 +642,22 @@ ltm_apply_validator_call_labels <- function(run_obj, validator_args) {
   run_obj
 }
 
+#' Check whether a path is absolute
+#'
+#' @param path Character scalar path.
+#' @return Logical scalar.
+#' @keywords internal
+#' @noRd
 ltm_is_absolute_path <- function(path) {
   grepl("^(?:[A-Za-z]:|/|\\\\\\\\)", path)
 }
 
+#' Build an empty tree-list state
+#'
+#' @param message Optional character scalar status message.
+#' @return List representing an unavailable tree-list state.
+#' @keywords internal
+#' @noRd
 ltm_empty_tree_state <- function(message = NULL) {
   list(
     data = NULL,
@@ -450,6 +670,14 @@ ltm_empty_tree_state <- function(message = NULL) {
   )
 }
 
+#' Load tree-list state for the Shiny app
+#'
+#' @param params Parsed Shiny parameter list.
+#' @param config_path Optional parameter-file path used to resolve relative tree
+#'   list paths.
+#' @return List containing load status, choices, data, and messages.
+#' @keywords internal
+#' @noRd
 ltm_load_tree_list_state <- function(params, config_path = NULL) {
   tree_cfg <- params$tree_list_file
 
@@ -543,6 +771,14 @@ ltm_load_tree_list_state <- function(params, config_path = NULL) {
   )
 }
 
+#' Update Shiny tree-selection controls
+#'
+#' @param session Shiny session object.
+#' @param tree_state Loaded tree-list state.
+#' @param selected Character scalar currently selected tree identifier.
+#' @return Invisibly returns `NULL`.
+#' @keywords internal
+#' @noRd
 ltm_update_tree_choices <- function(session, tree_state, selected = "---") {
   shiny::updateSelectInput(
     session = session,
@@ -552,6 +788,12 @@ ltm_update_tree_choices <- function(session, tree_state, selected = "---") {
   )
 }
 
+#' Initialize app configuration and tree-list state
+#'
+#' @param config_path Optional path to a JSON parameter file.
+#' @return List containing parameters, config path, and tree-list state.
+#' @keywords internal
+#' @noRd
 ltm_app_startup <- function(config_path = NULL) {
   if (is.null(config_path)) {
     config_path <- ltm_init_params()
@@ -574,14 +816,32 @@ ltm_app_startup <- function(config_path = NULL) {
   )
 }
 
+#' Render a Shiny control grid
+#'
+#' @param ... UI elements placed inside the grid.
+#' @return Shiny UI tag object.
+#' @keywords internal
+#' @noRd
 ltm_control_grid <- function(...) {
   tags$div(class = "ltm-control-grid", ...)
 }
 
+#' Render Shiny help text
+#'
+#' @param text Character scalar help text.
+#' @return Shiny UI tag object.
+#' @keywords internal
+#' @noRd
 ltm_help_text <- function(text) {
   tags$p(class = "ltm-help", text)
 }
 
+#' Render a workflow status badge
+#'
+#' @param label Character scalar status label.
+#' @return Shiny UI tag object.
+#' @keywords internal
+#' @noRd
 ltm_workflow_status_badge <- function(label) {
   status_key <- tolower(gsub("[^[:alnum:]]+", "-", label))
   status_key <- gsub("(^-|-$)", "", status_key)
@@ -592,6 +852,18 @@ ltm_workflow_status_badge <- function(label) {
   )
 }
 
+#' Render one workflow step for the Shiny app
+#'
+#' @param step_id Character scalar step identifier.
+#' @param step_number Step number or label rendered in the step header.
+#' @param title Character scalar step title.
+#' @param status_output_id Shiny output id used for the status badge.
+#' @param summary_output_id Shiny output id used for the step summary.
+#' @param open Logical scalar indicating whether the step starts expanded.
+#' @param ... Shiny UI elements placed inside the step body.
+#' @return Shiny UI tag object.
+#' @keywords internal
+#' @noRd
 ltm_workflow_step_ui <- function(
     step_id,
     step_number,
@@ -635,6 +907,11 @@ ltm_workflow_step_ui <- function(
   )
 }
 
+#' Render break-validator controls for the Shiny app
+#'
+#' @return Shiny UI tag object containing validator parameter controls.
+#' @keywords internal
+#' @noRd
 ltm_validator_controls_ui <- function() {
   tagList(
     tags$div(class = "ltm-subsection-title", "Long-term validator"),
@@ -736,6 +1013,18 @@ ltm_validator_controls_ui <- function() {
   )
 }
 
+#' Build a cache key for the current Shiny request
+#'
+#' @param coord_request Resolved coordinate request returned by
+#'   `ltm_resolve_coordinate_request()`.
+#' @param start_date Requested start date.
+#' @param end_date Requested end date.
+#' @param spi Spectral index label.
+#' @param proc_level Sentinel-2 processing-level label.
+#' @return List representing the request parameters, or `NULL` when the request
+#'   is incomplete.
+#' @keywords internal
+#' @noRd
 ltm_current_request_key <- function(
     coord_request,
     start_date,
@@ -767,10 +1056,27 @@ ltm_current_request_key <- function(
   )
 }
 
+#' Check whether an `spidf` contains required columns
+#'
+#' @param spidf Candidate `spidf` object.
+#' @param columns Character vector of required column names.
+#' @return Logical scalar.
+#' @keywords internal
+#' @noRd
 ltm_spidf_has_columns <- function(spidf, columns) {
   !is.null(spidf) && all(columns %in% names(spidf))
 }
 
+#' Derive Shiny workflow readiness flags
+#'
+#' @param target_request Current resolved target-location request.
+#' @param current_request_key Current request key.
+#' @param spidf Current `spidf` object, if available.
+#' @param fetched_request_key Request key used for currently loaded data.
+#' @param break_results Current break-results object, if available.
+#' @return List of logical workflow flags.
+#' @keywords internal
+#' @noRd
 ltm_workflow_state <- function(
     target_request = NULL,
     current_request_key = NULL,

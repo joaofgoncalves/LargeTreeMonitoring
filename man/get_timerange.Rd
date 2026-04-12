@@ -7,15 +7,15 @@
 get_timerange(x)
 }
 \arguments{
-\item{x}{A data frame or `spidf` object containing a `ti` column with
+\item{x}{A data frame or \code{spidf} object containing a \code{ti} column with
 date-like values.}
 }
 \value{
-A named vector with elements `start_date` and `end_date` of class `Date`.
-Returns `NA` values if the input contains no valid dates.
+A named vector with elements \code{start_date} and \code{end_date} of class \code{Date}.
+Returns \code{NA} values if the input contains no valid dates.
 }
 \description{
-Computes the minimum and maximum dates from the `ti` column of a data
-frame or `spidf` object and returns them as a named vector.
+Computes the minimum and maximum dates from the \code{ti} column of a data
+frame or \code{spidf} object and returns them as a named vector.
 }
 \keyword{internal}

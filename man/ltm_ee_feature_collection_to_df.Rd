@@ -7,17 +7,16 @@
 ltm_ee_feature_collection_to_df(x_fc, max_features = 10000L)
 }
 \arguments{
-\item{x_fc}{An `ee$FeatureCollection` object.}
+\item{x_fc}{An \code{ee$FeatureCollection} object.}
 
 \item{max_features}{Integer. Maximum number of features allowed to be
 retrieved. Defaults to 10000.}
 }
 \value{
 A data frame where each row corresponds to a feature and columns correspond
-  to feature properties.
+to feature properties.
 }
 \description{
 Retrieves a FeatureCollection from Google Earth Engine, checks its size
 against a maximum threshold, and converts its features into a data frame.
 }
-\keyword{internal}

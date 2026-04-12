@@ -1,5 +1,27 @@
 
 
+#' Regularize an `spidf` time series to daily observations
+#'
+#' Converts an irregular Sentinel-2 spectral-index time series to a daily
+#' sequence spanning the available data range and imputes missing daily values
+#' with a selected method from \pkg{imputeTS}. The output keeps the `spidf`
+#' metadata from the input and records the regularization status in attributes.
+#'
+#' @param spidf_obj An object of class `spidf`.
+#' @param method Character scalar interpolation or imputation method. Supported
+#'   values are `"linear"`, `"spline"`, `"stine"`, `"mean"`, `"kalman"`,
+#'   `"locf"`, and `"nocb"`.
+#' @param use_cloud_mask Logical scalar. If `TRUE`, interpolate the
+#'   cloud-masked values in `masked_vals`; if `FALSE`, interpolate the raw
+#'   spectral-index values in `spi`.
+#' @param ... Additional arguments passed to the selected \pkg{imputeTS}
+#'   imputation function.
+#'
+#' @return An object of class `spidf` with one row per day, columns `ti`, `spi`,
+#'   `original_spi`, `masked_vals`, and `cloud_mask`, and updated attributes
+#'   `regularized = TRUE` and `regularize_method = method`.
+#' @family preprocessing helpers
+#' @export
 ltm_regularize_spidf <- function(spidf_obj, method = "linear", use_cloud_mask = TRUE, ...) {
   
   stopifnot(inherits(spidf_obj, "spidf"))
@@ -61,6 +83,24 @@ ltm_regularize_spidf <- function(spidf_obj, method = "linear", use_cloud_mask = 
 }
 
 
+#' Apply a moving quantile to a regularized `spidf` time series
+#'
+#' Computes a centered moving quantile over the daily `spi` column of a
+#' regularized `spidf` object. The result is stored in `spi_mov_wind`; existing
+#' metadata are preserved and moving-window attributes are updated.
+#'
+#' @param spidf_obj A regularized object of class `spidf`, typically returned
+#'   by [ltm_regularize_spidf()].
+#' @param quant Numeric scalar probability passed to [stats::quantile()].
+#' @param win_size Integer window size in days. The window is split around each
+#'   observation using `floor(win_size / 2)` days before and
+#'   `ceiling(win_size / 2)` days after.
+#'
+#' @return An object of class `spidf` with an added `spi_mov_wind` column and
+#'   updated attributes `mov_window`, `mov_window_quantile`, and
+#'   `mov_window_size_days`.
+#' @family preprocessing helpers
+#' @export
 ltm_apply_moving_quantile <- function(spidf_obj, quant = 0.95, win_size = 9) {
   
   stopifnot(inherits(spidf_obj, "spidf"))
@@ -98,6 +138,29 @@ ltm_apply_moving_quantile <- function(spidf_obj, quant = 0.95, win_size = 9) {
 
 
 
+#' Apply Whittaker smoothing to a regularized `spidf` time series
+#'
+#' Smooths the daily `spi` series with [phenofit::whit2()]. When moving-window
+#' values are present, the function also smooths `spi_mov_wind` into
+#' `spi_mov_smooth`. Optional weights can reduce the influence of lower
+#' spectral-index values before smoothing the main `spi` series.
+#'
+#' @param spidf_obj A regularized object of class `spidf`, typically returned
+#'   by [ltm_regularize_spidf()].
+#' @param lambda Numeric smoothing parameter passed to [phenofit::whit2()].
+#' @param quantile_thresh Numeric probability used to compute the weighting
+#'   threshold when `use_weights = TRUE`.
+#' @param use_weights Logical scalar. If `TRUE`, values greater than or equal to
+#'   the `quantile_thresh` quantile receive weight `1`, lower non-missing values
+#'   receive `min_weight`, and missing values receive `0`.
+#' @param min_weight Numeric weight assigned to finite values below the
+#'   threshold when `use_weights = TRUE`.
+#'
+#' @return An object of class `spidf` with `spi_smooth`, optional `spi_weight`,
+#'   and optional `spi_mov_smooth` columns, plus updated Whittaker-smoothing
+#'   attributes.
+#' @family preprocessing helpers
+#' @export
 ltm_apply_whitaker <- function(spidf_obj, lambda = 5000, quantile_thresh = 0.35, 
                            use_weights = TRUE, min_weight = 0.01) {
   

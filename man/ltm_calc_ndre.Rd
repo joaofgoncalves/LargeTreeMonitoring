@@ -7,15 +7,15 @@
 ltm_calc_ndre(img)
 }
 \arguments{
-\item{img}{An `ee$Image` object representing a Sentinel-2 image.}
+\item{img}{An \code{ee$Image} object representing a Sentinel-2 image.}
 }
 \value{
-An `ee$Image` with two bands: `NDRE` and `cloud_mask`.
+An \code{ee$Image} with two bands: \code{NDRE} and \code{cloud_mask}.
 }
 \description{
-Computes the normalized difference red-edge index (NDRE) from the `NIR` and
-`RE1` bands of a Sentinel-2 image and adds a binary cloud mask derived from
-the `QA60` band. The output preserves the original image properties and
+Computes the normalized difference red-edge index (NDRE) from the \code{NIR} and
+\code{RE1} bands of a Sentinel-2 image and adds a binary cloud mask derived from
+the \code{QA60} band. The output preserves the original image properties and
 acquisition time.
 }
 \keyword{internal}

@@ -23,9 +23,9 @@ ltm_trend_validator_randomized(
 \arguments{
 \item{ysa}{Numeric vector. Time-series values used for validation.}
 
-\item{dts}{Date vector or date-like vector of the same length as `ysa`.}
+\item{dts}{Date vector or date-like vector of the same length as \code{ysa}.}
 
-\item{brk}{Integer. Break index in `ysa`.}
+\item{brk}{Integer. Break index in \code{ysa}.}
 
 \item{trend_window}{Integer. Half-window size used on each side of the break.
 The centered validation window excludes the break index itself.}
@@ -33,7 +33,7 @@ The centered validation window excludes the break index itself.}
 \item{thresh_date}{Date or date-like value. The validation window must extend
 to at least this date for the break to be considered valid.}
 
-\item{trend_require_lower_level}{Logical. If `TRUE`, the mean of the
+\item{trend_require_lower_level}{Logical. If \code{TRUE}, the mean of the
 post-break half-window must be lower than the mean of the pre-break
 half-window.}
 
@@ -62,55 +62,54 @@ validation.}
 \value{
 A named list with validation results:
 \describe{
-  \item{has_valid_breaks_st_trend}{Logical indicating whether the break passes
-  the short-term trend validator.}
-  \item{trend_rand_p_value}{One-sided p-value comparing the centered slope to
-  the randomized pre-break null distribution.}
-  \item{trend_slope_ts}{Theil-Sen slope for the centered validation window on
-  the original scale.}
-  \item{trend_slope_ts_pct}{The centered slope expressed as percent per year
-  relative to the pre-break baseline.}
-  \item{trend_rand_null_mean_pct}{Mean of the null distribution of percent
-  slopes.}
-  \item{trend_rand_null_sd_pct}{Standard deviation of the null distribution of
-  percent slopes.}
-  \item{trend_rand_effect_pct}{Difference between the centered percent slope
-  and the null mean percent slope.}
-  \item{trend_rand_B}{Effective number of valid null draws used.}
-  \item{trend_rand_len}{Length of the centered validation window.}
-  \item{post_prop_below_baseline}{Proportion of post-break observations below
-  the baseline threshold.}
-  \item{post_avg_deficit_pct}{Mean post-break percent deficit relative to the
-  pre-break baseline.}
+\item{has_valid_breaks_st_trend}{Logical indicating whether the break passes
+the short-term trend validator.}
+\item{trend_rand_p_value}{One-sided p-value comparing the centered slope to
+the randomized pre-break null distribution.}
+\item{trend_slope_ts}{Theil-Sen slope for the centered validation window on
+the original scale.}
+\item{trend_slope_ts_pct}{The centered slope expressed as percent per year
+relative to the pre-break baseline.}
+\item{trend_rand_null_mean_pct}{Mean of the null distribution of percent
+slopes.}
+\item{trend_rand_null_sd_pct}{Standard deviation of the null distribution of
+percent slopes.}
+\item{trend_rand_effect_pct}{Difference between the centered percent slope
+and the null mean percent slope.}
+\item{trend_rand_B}{Effective number of valid null draws used.}
+\item{trend_rand_len}{Length of the centered validation window.}
+\item{post_prop_below_baseline}{Proportion of post-break observations below
+the baseline threshold.}
+\item{post_avg_deficit_pct}{Mean post-break percent deficit relative to the
+pre-break baseline.}
 }
 }
 \description{
 Evaluates whether a detected breakpoint is supported by a short-term negative
 trend around the break. The function computes the Theil-Sen slope on a
-centered window around `brk` and compares that slope against a null
+centered window around \code{brk} and compares that slope against a null
 distribution built from random contiguous pre-break windows of the same
 length. Slopes are expressed in percent per year relative to a robust
 pre-break baseline. The decision rule can also accept breaks showing a
 sustained post-break depression, including partial recovery cases.
 }
 \details{
-The centered validation window is constructed from `trend_window`
-observations before the break and `trend_window` observations after the
+The centered validation window is constructed from \code{trend_window}
+observations before the break and \code{trend_window} observations after the
 break, excluding the break index itself. If the series is too short, if the
 centered window is too small, or if there is insufficient pre-break data to
 sample equally long null windows, the function returns a result with
-`has_valid_breaks_st_trend = FALSE` and missing diagnostics where
+\code{has_valid_breaks_st_trend = FALSE} and missing diagnostics where
 appropriate.
 
 A break is considered valid only if the centered window reaches at least
-`thresh_date`, any requested lower-level condition is satisfied, and at least
+\code{thresh_date}, any requested lower-level condition is satisfied, and at least
 one of the following holds:
 \enumerate{
-  \item the centered percent slope is sufficiently negative;
-  \item the centered percent slope is significantly more negative than the
-  randomized pre-break null distribution;
-  \item the post-break half-window remains sufficiently depressed relative to
-  the pre-break baseline.
+\item the centered percent slope is sufficiently negative;
+\item the centered percent slope is significantly more negative than the
+randomized pre-break null distribution;
+\item the post-break half-window remains sufficiently depressed relative to
+the pre-break baseline.
 }
 }
-\keyword{internal}

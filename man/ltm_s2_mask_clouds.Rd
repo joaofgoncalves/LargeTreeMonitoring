@@ -7,13 +7,13 @@
 ltm_s2_mask_clouds(img)
 }
 \arguments{
-\item{img}{An `ee$Image` object representing a Sentinel-2 image.}
+\item{img}{An \code{ee$Image} object representing a Sentinel-2 image.}
 }
 \value{
-An `ee$Image` with cloud- and cirrus-contaminated pixels masked.
+An \code{ee$Image} with cloud- and cirrus-contaminated pixels masked.
 }
 \description{
-Applies a cloud mask to a Sentinel-2 image using the `QA60` quality band.
+Applies a cloud mask to a Sentinel-2 image using the \code{QA60} quality band.
 Pixels flagged as clouds or cirrus (bits 10 and 11) are masked out,
 retaining only clear-sky observations.
 }

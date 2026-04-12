@@ -36,27 +36,27 @@ of "L1","L1C","L2","L2A"}
 
 \item{crs_code}{Character. CRS code passed to Earth Engine during reduction.}
 
-\item{rm_duplicates}{Logical. If `TRUE`, duplicate observations are removed
-with `ltm_remove_duplicates()`.}
+\item{rm_duplicates}{Logical. If \code{TRUE}, duplicate observations are removed
+with \code{ltm_remove_duplicates()}.}
 
 \item{tree_id}{Optional identifier associated with the target tree or
 location. Stored as an attribute in the output.}
 
-\item{use_buffer}{Logical. If `TRUE`, values are extracted from a buffer
+\item{use_buffer}{Logical. If \code{TRUE}, values are extracted from a buffer
 around the point.}
 
 \item{buffer_radius_m}{Numeric. Buffer radius in meters. Required when
-`use_buffer = TRUE`.}
+\code{use_buffer = TRUE}.}
 
 \item{cloud_mask_threshold}{Numeric. Threshold used to binarize the mean cloud
 mask; values greater than or equal to this threshold are treated as cloudy.}
 }
 \value{
-An object of class `spidf` with columns `id`, `ti`, `masked_vals`, `spi`,
-and `cloud_mask`, plus metadata stored as attributes.
+An object of class \code{spidf} with columns \code{id}, \code{ti}, \code{masked_vals}, \code{spi},
+and \code{cloud_mask}, plus metadata stored as attributes.
 }
 \description{
 Retrieves a Sentinel-2 time series from Google Earth Engine for a target
 location, computes the selected spectral index, applies a binary cloud mask,
-and returns the result as an object of class `spidf`.
+and returns the result as an object of class \code{spidf}.
 }

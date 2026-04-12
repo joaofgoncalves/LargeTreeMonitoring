@@ -12,7 +12,7 @@ package uses the user-specific configuration file in the standard R user
 config directory, creating it from the default template when needed.}
 }
 \value{
-A `shiny.appobj` that can be launched with [shiny::runApp()].
+A \code{shiny.appobj} that can be launched with \code{\link[shiny:runApp]{shiny::runApp()}}.
 }
 \description{
 Creates the packaged Shiny application for analysing satellite-image time

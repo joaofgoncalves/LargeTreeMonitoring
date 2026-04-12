@@ -2,12 +2,12 @@
 % Please edit documentation in R/LTM_break_detection.R
 \name{print.ts_breaks_run}
 \alias{print.ts_breaks_run}
-\title{Print method for `ts_breaks_run` objects}
+\title{Print method for \code{ts_breaks_run} objects}
 \usage{
 \method{print}{ts_breaks_run}(x, digits = 4, ...)
 }
 \arguments{
-\item{x}{An object of class `ts_breaks_run`.}
+\item{x}{An object of class \code{ts_breaks_run}.}
 
 \item{digits}{Integer. Number of decimal places used when printing numeric
 values.}
@@ -15,11 +15,11 @@ values.}
 \item{...}{Additional arguments passed to print methods.}
 }
 \value{
-Invisibly returns `x`.
+Invisibly returns \code{x}.
 }
 \description{
 Displays a formatted summary of a breakpoint-detection run stored as a
-`ts_breaks_run` object, including method metadata, detected breaks, and
+\code{ts_breaks_run} object, including method metadata, detected breaks, and
 available long-term, short-term, and short-term trend validation results.
 The recorded function call is printed at the end.
 }

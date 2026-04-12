@@ -8,11 +8,11 @@ ltm_get_s2_imgcol(proc_level = "L2A")
 }
 \arguments{
 \item{proc_level}{Character. Sentinel-2 processing level to use. Supported
-values are `"L2A"` or `"L2"` for surface reflectance, and `"L1C"` or
-`"L1"` for top-of-atmosphere reflectance.}
+values are \code{"L2A"} or \code{"L2"} for surface reflectance, and \code{"L1C"} or
+\code{"L1"} for top-of-atmosphere reflectance.}
 }
 \value{
-An `ee$ImageCollection` with selected and renamed Sentinel-2 bands.
+An \code{ee$ImageCollection} with selected and renamed Sentinel-2 bands.
 }
 \description{
 Returns a harmonized Sentinel-2 image collection from Google Earth Engine

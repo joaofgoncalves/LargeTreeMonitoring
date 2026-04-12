@@ -1,5 +1,17 @@
 
 
+#' Convert an `spidf` column to a `zoo` time series
+#'
+#' Creates a [zoo::zoo()] object using the selected value column and the `ti`
+#' dates stored in an `spidf` object.
+#'
+#' @param spidf_obj An object of class `spidf`.
+#' @param yname Character scalar naming the column to use as the time-series
+#'   values.
+#'
+#' @return A `zoo` object indexed by `spidf_obj$ti`.
+#' @family time-series conversion helpers
+#' @export
 ltm_spidf_to_zoo <- function(spidf_obj, yname){
 
   stopifnot(inherits(spidf_obj, "spidf"))
@@ -10,6 +22,21 @@ ltm_spidf_to_zoo <- function(spidf_obj, yname){
 
 }
 
+#' Convert an `spidf` column to a regular `ts` object
+#'
+#' Creates a base R [stats::ts()] object from an `spidf` value column. Leap-day
+#' rows are removed before conversion so the default annual frequency of 365
+#' remains aligned with day-of-year indexing.
+#'
+#' @param spidf_obj An object of class `spidf`.
+#' @param yname Character scalar naming the column to use as the time-series
+#'   values.
+#' @param freq Numeric frequency passed to [stats::ts()]. The default is `365`.
+#'
+#' @return A `ts` object whose start is derived from the first non-leap date in
+#'   `spidf_obj$ti`.
+#' @family time-series conversion helpers
+#' @export
 ltm_spidf_to_ts <- function(spidf_obj, yname, freq = 365){
 
   stopifnot(inherits(spidf_obj, "spidf"))
@@ -29,6 +56,12 @@ ltm_spidf_to_ts <- function(spidf_obj, yname, freq = 365){
 
 }
 
+#' Remove leap-day observations from an `spidf`
+#'
+#' @param spidf_obj An object of class `spidf` containing a `ti` date column.
+#' @return An object of class `spidf` without rows dated February 29.
+#' @keywords internal
+#' @noRd
 ltm_remove_leap_days <- function(spidf_obj) {
 
   stopifnot(inherits(spidf_obj, "spidf"))
@@ -43,6 +76,13 @@ ltm_remove_leap_days <- function(spidf_obj) {
 }
 
 
+#' Extract dates from an `spidf`
+#'
+#' @param spidf_obj An object of class `spidf` containing a `ti` date column.
+#' @param remove_leap Logical scalar. If `TRUE`, omit February 29 dates.
+#' @return Date vector.
+#' @keywords internal
+#' @noRd
 ltm_get_dates <- function(spidf_obj, remove_leap=TRUE) {
   stopifnot(inherits(spidf_obj, "spidf"))
   stopifnot("ti" %in% names(spidf_obj))  # Ensure the column exists
@@ -56,6 +96,12 @@ ltm_get_dates <- function(spidf_obj, remove_leap=TRUE) {
 }
 
 
+#' Identify duplicate acquisition dates in an `spidf`
+#'
+#' @param spidf_obj An object of class `spidf` containing a `ti` date column.
+#' @return Integer vector of row indices whose dates are duplicated.
+#' @keywords internal
+#' @noRd
 ltm_get_duplicate_date_indices <- function(spidf_obj) {
 
   stopifnot(inherits(spidf_obj, "spidf"))
@@ -72,6 +118,16 @@ ltm_get_duplicate_date_indices <- function(spidf_obj) {
 }
 
 
+#' Remove duplicate acquisition dates from an `spidf`
+#'
+#' Keeps one row per date, selecting the row with the largest `spi` value when
+#' duplicate dates are present.
+#'
+#' @param spidf_obj An object of class `spidf` containing `ti` and `spi`
+#'   columns.
+#' @return An object of class `spidf` sorted by date.
+#' @keywords internal
+#' @noRd
 ltm_remove_duplicates <- function(spidf_obj) {
 
   stopifnot(inherits(spidf_obj, "spidf"))
@@ -92,7 +148,22 @@ ltm_remove_duplicates <- function(spidf_obj) {
   return(out_df)
 }
 
-ltm_copy_metadata <- function(x,from){
+#' Copy `spidf` metadata attributes
+#'
+#' Copies the metadata attributes used by LargeTreeMonitoring from one object to
+#' another. This includes spatial coordinates, requested and available date
+#' ranges, spectral-index metadata, buffer settings, and preprocessing flags.
+#' The function does not validate that `x` and `from` contain compatible rows or
+#' time-series values.
+#'
+#' @param x Object that will receive metadata attributes.
+#' @param from Object, normally an `spidf`, from which metadata attributes are
+#'   read through the package accessors.
+#'
+#' @return Object `x` with copied attributes.
+#' @family metadata helpers
+#' @export
+ltm_copy_metadata <- function(x, from){
 
   #stopifnot(inherits(x, "spidf"))
   #stopifnot(inherits(from, "spidf"))
@@ -131,6 +202,17 @@ ltm_copy_metadata <- function(x,from){
 }
 
 
+#' Count days between two dates
+#'
+#' Coerces both inputs to `Date` and returns the integer day difference
+#' `end_date - start_date`.
+#'
+#' @param start_date Start date or value coercible to `Date`.
+#' @param end_date End date or value coercible to `Date`.
+#'
+#' @return Integer scalar number of days between `start_date` and `end_date`.
+#' @family time-series conversion helpers
+#' @export
 ltm_days_between <- function(start_date, end_date) {
   start_date <- as.Date(start_date)
   end_date   <- as.Date(end_date)
@@ -138,6 +220,13 @@ ltm_days_between <- function(start_date, end_date) {
   as.integer(difftime(end_date, start_date, units = "days"))
 }
 
+#' Convert a fractional-year break date to `Date`
+#'
+#' @param breakDate Numeric fractional year.
+#' @return A `Date` approximating the fractional-year position with a 365-day
+#'   year.
+#' @keywords internal
+#' @noRd
 ltm_convert_breakdate_to_date <- function(breakDate) {
   year <- floor(breakDate)
   fractional_year <- breakDate - year
@@ -150,6 +239,19 @@ ltm_convert_breakdate_to_date <- function(breakDate) {
 }
 
 
+#' Copy time-series attributes to new values
+#'
+#' Builds a new [stats::ts()] object with the same start, end, and frequency as
+#' an existing `ts` object, replacing only the observed values.
+#'
+#' @param ts_to_copy A base R `ts` object whose time attributes are copied.
+#' @param values Vector of replacement values. Its length must equal
+#'   `length(ts_to_copy)`.
+#'
+#' @return A `ts` object containing `values` and the time attributes of
+#'   `ts_to_copy`.
+#' @family time-series conversion helpers
+#' @export
 ltm_copy_ts <- function(ts_to_copy, values){
 
   stopifnot(stats::is.ts(ts_to_copy))
@@ -170,6 +272,22 @@ ltm_copy_ts <- function(ts_to_copy, values){
 
 
 
+#' Summarize flat break-detection results
+#'
+#' Creates a human-readable text summary from a data frame of breakpoint runs,
+#' such as the output of [as.data.frame.ts_breaks()]. The summary reports the
+#' number of runs, detected breaks, validator pass counts, and grouped
+#' summaries for long-term, short-term, and short-term trend validators when
+#' their columns are present.
+#'
+#' @param break_df Data frame containing one row per break-detection run. Common
+#'   columns include `method` or `algorithm`, `data_type`, `has_breaks`,
+#'   `break_date`, `break_magn`, `has_valid_breaks_lt`,
+#'   `has_valid_breaks_st`, and `has_valid_breaks_st_trend`.
+#'
+#' @return Character scalar containing a multi-line summary.
+#' @family break result helpers
+#' @export
 ltm_summarize_break_df <- function(break_df) {
   if (!is.data.frame(break_df)) {
     stop("Error: 'break_df' must be a data.frame.")
@@ -332,8 +450,17 @@ ltm_summarize_break_df <- function(break_df) {
       heading = "Short-term trend valid breaks",
       metric_parts = list(
         list(col = "trend_slope_ts_pct", label = "avg slope", suffix = "%/yr", digits = 2),
-        list(col = "trend_rand_p_value", label = "avg p-value", suffix = "", digits = 3)
+        list(col = "trend_rand_p_value", label = "avg p-value", suffix = "", digits = 3),
+        list(col = "post_prop_below_baseline", label = "prop obs below base", suffix = "", digits = 2),
+        list(col = "post_avg_deficit_pct", label = "avg post deficit", suffix = "%", digits = 1)
       ),
+
+      # trend_rand_p_value
+      # trend_slope_ts_pct
+      # post_prop_below_baseline - Proportion of post-break observations below
+      #                            the baseline
+      # post_avg_deficit_pct - Mean post-break percent deficit relative to the
+      #                        pre-break baseline.
       empty_message = "No short-term trend valid breaks were detected."
     )
   )
@@ -341,15 +468,33 @@ ltm_summarize_break_df <- function(break_df) {
   paste(summary_lines, collapse = "\n")
 }
 
+#' Compute the 90th percentile
+#'
+#' @param x Numeric vector.
+#' @param na.rm Logical scalar passed to [stats::quantile()].
+#' @param ... Additional arguments passed to [stats::quantile()].
+#' @return Numeric scalar containing the unnamed 90th percentile.
+#' @keywords internal
+#' @noRd
 Percentile90 <- function(x, na.rm = TRUE, ...) {
   unname(stats::quantile(x, probs = 0.9, na.rm = na.rm, ...))
 }
 
 
+#' Get the current-location cache file path
+#'
+#' @return Character scalar path to the current-location text file.
+#' @keywords internal
+#' @noRd
 ltm_loc_file <- function() {
   file.path(ltm_cache_dir(), "current_location.txt")
 }
 
+#' Read the last stored Shiny location
+#'
+#' @return Character scalar location string, or `NULL` when absent.
+#' @keywords internal
+#' @noRd
 ltm_read_location <- function() {
   loc_file <- ltm_loc_file()
 
@@ -366,6 +511,13 @@ ltm_read_location <- function() {
   }
 }
 
+#' Store the last Shiny location
+#'
+#' @param lat Numeric latitude.
+#' @param lon Numeric longitude.
+#' @return Invisibly returns `NULL`.
+#' @keywords internal
+#' @noRd
 ltm_store_location <- function(lat, lon) {
   loc_file <- ltm_loc_file()
 

@@ -35,43 +35,43 @@ ltm_ed_detect_breaks(
 )
 }
 \arguments{
-\item{spidf}{An object of class `spidf`.}
+\item{spidf}{An object of class \code{spidf}.}
 
 \item{ts_name}{Character. Name of the time-series column to analyze. Must be
-one of `VALID_DATA_TYPES`.}
+one of \code{VALID_DATA_TYPES}.}
 
-\item{sig_lvl}{Numeric. Significance level passed to `ecp::e.divisive()`.}
+\item{sig_lvl}{Numeric. Significance level passed to \code{ecp::e.divisive()}.}
 
-\item{R}{Integer. Number of permutations passed to `ecp::e.divisive()`.}
+\item{R}{Integer. Number of permutations passed to \code{ecp::e.divisive()}.}
 
-\item{k}{Integer. Additional argument passed to `ecp::e.divisive()`.}
+\item{k}{Integer. Additional argument passed to \code{ecp::e.divisive()}.}
 
-\item{min_size}{Integer. Minimum cluster size passed to `ecp::e.divisive()`.}
+\item{min_size}{Integer. Minimum cluster size passed to \code{ecp::e.divisive()}.}
 
 \item{alpha}{Numeric. Significance level adjustment parameter passed to
-`ecp::e.divisive()`.}
+\code{ecp::e.divisive()}.}
 
-\item{season_adj}{Logical. If `TRUE`, applies seasonal adjustment before
+\item{season_adj}{Logical. If \code{TRUE}, applies seasonal adjustment before
 breakpoint detection when the series is long enough.}
 
-\item{s_window}{Integer. Seasonal window used by `stats::stl()` when
-`season_adj = TRUE`.}
+\item{s_window}{Integer. Seasonal window used by \code{stats::stl()} when
+\code{season_adj = TRUE}.}
 
 \item{thresh_date}{Date or date-like value. The selected breakpoint must
 occur on or after this date to be considered valid.}
 
 \item{lt_window}{Optional integer. If provided, long-term validation is
-computed using symmetric windows of this size around the break. Use `NULL`
-or `0` to use all observations before and after the break.}
+computed using symmetric windows of this size around the break. Use \code{NULL}
+or \code{0} to use all observations before and after the break.}
 
 \item{lt_thresh_change}{Numeric. Maximum allowed percent change for the
 long-term validator. More negative values indicate stronger declines.}
 
 \item{lt_fun}{Function. Aggregation function used by the long-term validator,
-typically `median` or `mean`.}
+typically \code{median} or \code{mean}.}
 
 \item{st_window}{Optional integer. Half-window size for the short-term
-validator. If `NULL`, short-term validation is skipped.}
+validator. If \code{NULL}, short-term validation is skipped.}
 
 \item{st_thresh_change}{Numeric. Maximum allowed percent change for the
 short-term validator.}
@@ -80,9 +80,9 @@ short-term validator.}
 validator.}
 
 \item{trend_window}{Optional integer. Half-window size for the randomized
-short-term trend validator. If `NULL`, trend validation is skipped.}
+short-term trend validator. If \code{NULL}, trend validation is skipped.}
 
-\item{trend_require_lower_level}{Logical. If `TRUE`, the post-break mean must
+\item{trend_require_lower_level}{Logical. If \code{TRUE}, the post-break mean must
 be lower than the pre-break mean in the trend validator.}
 
 \item{trend_rand_B}{Integer. Number of randomized pre-break windows used to
@@ -107,40 +107,39 @@ that must remain below baseline for depression-based trend validation.}
 deficit, in percent, for depression-based trend validation.}
 
 \item{break_select}{Character. Rule used to select a breakpoint when multiple
-candidates are detected. One of `"first"`, `"first_after_date"`, or
-`"largest_drop"`.}
+candidates are detected. One of \code{"first"}, \code{"first_after_date"}, or
+\code{"largest_drop"}.}
 
 \item{...}{Additional arguments reserved for future use.}
 }
 \value{
-An object of class `ts_breaks_run`. It contains the selected breakpoint, the
+An object of class \code{ts_breaks_run}. It contains the selected breakpoint, the
 percent magnitude of the long-term change, flags for detected and validated
-breaks, the raw `ecp::e.divisive()` output, preprocessing metadata, and
+breaks, the raw \code{ecp::e.divisive()} output, preprocessing metadata, and
 diagnostics from the short-term and randomized trend validators.
 }
 \description{
 Applies the energy divisive algorithm from \pkg{ecp} to a time series stored
-in an `spidf` object and returns a single selected breakpoint together with
+in an \code{spidf} object and returns a single selected breakpoint together with
 long-term, short-term, and optional randomized trend-based validation
 diagnostics.
 }
 \details{
 The selected series can be seasonally adjusted before breakpoint detection.
 When multiple candidate breakpoints are detected, one breakpoint is selected
-according to `break_select`.
-
+according to \code{break_select}.
 
 If the input series is too short, contains too few observations after
 preprocessing, or no valid breakpoint candidates are found, the function
-returns a `ts_breaks_run` object with `has_breaks = FALSE` and validation
-fields set to `FALSE` or `NA` as appropriate.
+returns a \code{ts_breaks_run} object with \code{has_breaks = FALSE} and validation
+fields set to \code{FALSE} or \code{NA} as appropriate.
 
 Missing values are interpolated before seasonal adjustment. Seasonal
-adjustment is only applied when `season_adj = TRUE` and the series is long
-enough for `stats::stl()`. Otherwise, the original series is used.
+adjustment is only applied when \code{season_adj = TRUE} and the series is long
+enough for \code{stats::stl()}. Otherwise, the original series is used.
 
 The long-term validator compares aggregated values before and after the
 selected break. The short-term validator compares local pre- and post-break
-windows when `st_window` is provided. The randomized trend validator calls
-`ltm_trend_validator_randomized()` when `trend_window` is provided.
+windows when \code{st_window} is provided. The randomized trend validator calls
+\code{ltm_trend_validator_randomized()} when \code{trend_window} is provided.
 }

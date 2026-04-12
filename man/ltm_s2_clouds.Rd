@@ -7,15 +7,15 @@
 ltm_s2_clouds(img)
 }
 \arguments{
-\item{img}{An `ee$Image` object representing a Sentinel-2 image.}
+\item{img}{An \code{ee$Image} object representing a Sentinel-2 image.}
 }
 \value{
-An `ee$Image` containing a single band named `"cloud_mask"` with binary
-  values (1 = cloud/cirrus, 0 = clear), preserving the original image
-  properties and timestamp.
+An \code{ee$Image} containing a single band named \code{"cloud_mask"} with binary
+values (1 = cloud/cirrus, 0 = clear), preserving the original image
+properties and timestamp.
 }
 \description{
-Extracts cloud information from the `QA60` quality band of a Sentinel-2
+Extracts cloud information from the \code{QA60} quality band of a Sentinel-2
 image and creates a binary cloud mask. Pixels flagged as clouds or cirrus
 (bits 10 and 11) are assigned a value of 1, and clear-sky pixels are
 assigned a value of 0.

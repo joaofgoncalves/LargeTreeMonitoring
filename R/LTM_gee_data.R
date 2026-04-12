@@ -364,7 +364,7 @@ get_timerange <- function(x) {
 #' A data frame where each row corresponds to a feature and columns correspond
 #'   to feature properties. Returns an empty data frame if input is `NULL` or empty.
 #'
-#' @keywords internal
+#' @export
 #'
 ltm_ee_features_to_df <- function(features) {
   if (is.null(features) || length(features) == 0L) {
@@ -404,7 +404,7 @@ ltm_ee_features_to_df <- function(features) {
 #' A data frame where each row corresponds to a feature and columns correspond
 #'   to feature properties.
 #'
-#' @keywords internal
+#' @export
 #'
 ltm_ee_feature_collection_to_df <- function(x_fc, max_features = 10000L) {
   feature_count <- try(
@@ -683,98 +683,179 @@ print.spidf <- function(x, ...) {
 ## GET Functions
 ## -------------------------------------------------------------
 
-# Core metadata
+#' Get metadata from an `spidf` object
+#'
+#' These S3 generics and methods read metadata attributes stored on
+#' `spidf` objects returned by [ltm_s2_get_data_point()] and preprocessing
+#' helpers. Accessors are grouped by metadata type:
+#' `get_latitude()`, `get_longitude()`, `get_start_date()`, `get_end_date()`,
+#' `get_range_start()`, `get_range_end()`, `get_tree_id()`, `get_use_buffer()`,
+#' `get_buffer_radius_m()`, `get_cloud_mask_threshold()`, `get_spi()`,
+#' `get_proc_level()`, `get_crs_code()`, `is_regularized()`,
+#' `get_regularize_method()`, `has_mov_window()`,
+#' `get_mov_window_quantile()`, `get_mov_window_size_days()`,
+#' `is_whit_smoothed()`, `get_whit_lambda()`,
+#' `get_whit_quantile_threshold()`, and `get_whit_weights_used()`.
+#'
+#' @param x An object, typically of class `spidf`.
+#'
+#' @return The requested metadata attribute. Date accessors return `Date`
+#'   values where the method coerces the stored attribute; logical state
+#'   checkers return logical values; remaining accessors return the stored
+#'   numeric or character metadata value.
+#' @family metadata helpers
+#' @aliases spidf_accessors
+#' @rdname spidf_accessors
+#' @export
 get_latitude <- function(x) UseMethod("get_latitude")
+#' @rdname spidf_accessors
 #' @export
 get_latitude.spidf <- function(x) attr(x, "lat")
 
+#' @rdname spidf_accessors
+#' @export
 get_longitude <- function(x) UseMethod("get_longitude")
+#' @rdname spidf_accessors
 #' @export
 get_longitude.spidf <- function(x) attr(x, "lon")
 
+#' @rdname spidf_accessors
+#' @export
 get_start_date <- function(x) UseMethod("get_start_date")
+#' @rdname spidf_accessors
 #' @export
 get_start_date.spidf <- function(x) attr(x, "start_date")
 
+#' @rdname spidf_accessors
+#' @export
 get_end_date <- function(x) UseMethod("get_end_date")
+#' @rdname spidf_accessors
 #' @export
 get_end_date.spidf <- function(x) attr(x, "end_date")
 
+#' @rdname spidf_accessors
+#' @export
 get_spi <- function(x) UseMethod("get_spi")
+#' @rdname spidf_accessors
 #' @export
 get_spi.spidf <- function(x) attr(x, "spi")
 
+#' @rdname spidf_accessors
+#' @export
 get_proc_level <- function(x) UseMethod("get_proc_level")
+#' @rdname spidf_accessors
 #' @export
 get_proc_level.spidf <- function(x) attr(x, "proc_level")
 
+#' @rdname spidf_accessors
+#' @export
 get_crs_code <- function(x) UseMethod("get_crs_code")
+#' @rdname spidf_accessors
 #' @export
 get_crs_code.spidf <- function(x) attr(x, "crs_code")
 
-# State checkers
+#' @rdname spidf_accessors
+#' @export
 is_regularized <- function(x) UseMethod("is_regularized")
+#' @rdname spidf_accessors
 #' @export
 is_regularized.spidf <- function(x) attr(x, "regularized")
 
+#' @rdname spidf_accessors
+#' @export
 get_regularize_method <- function(x) UseMethod("get_regularize_method")
+#' @rdname spidf_accessors
 #' @export
 get_regularize_method.spidf <- function(x) attr(x, "regularize_method")
 
+#' @rdname spidf_accessors
+#' @export
 has_mov_window <- function(x) UseMethod("has_mov_window")
+#' @rdname spidf_accessors
 #' @export
 has_mov_window.spidf <- function(x) attr(x, "mov_window")
 
+#' @rdname spidf_accessors
+#' @export
 is_whit_smoothed <- function(x) UseMethod("is_whit_smoothed")
+#' @rdname spidf_accessors
 #' @export
 is_whit_smoothed.spidf <- function(x) attr(x, "whit_smoothing")
 
-# Moving window metadata
+#' @rdname spidf_accessors
+#' @export
 get_mov_window_quantile <- function(x) UseMethod("get_mov_window_quantile")
+#' @rdname spidf_accessors
 #' @export
 get_mov_window_quantile.spidf <- function(x) attr(x, "mov_window_quantile")
 
+#' @rdname spidf_accessors
+#' @export
 get_mov_window_size_days <- function(x) UseMethod("get_mov_window_size_days")
+#' @rdname spidf_accessors
 #' @export
 get_mov_window_size_days.spidf <- function(x) attr(x, "mov_window_size_days")
 
-# Whittaker smoothing metadata
+#' @rdname spidf_accessors
+#' @export
 get_whit_lambda <- function(x) UseMethod("get_whit_lambda")
+#' @rdname spidf_accessors
 #' @export
 get_whit_lambda.spidf <- function(x) attr(x, "whit_lambda")
 
+#' @rdname spidf_accessors
+#' @export
 get_whit_quantile_threshold <- function(x) UseMethod("get_whit_quantile_threshold")
+#' @rdname spidf_accessors
 #' @export
 get_whit_quantile_threshold.spidf <- function(x) attr(x, "whit_quantile_threshold")
 
+#' @rdname spidf_accessors
+#' @export
 get_whit_weights_used <- function(x) UseMethod("get_whit_weights_used")
+#' @rdname spidf_accessors
 #' @export
 get_whit_weights_used.spidf <- function(x) attr(x, "whit_weights_used")
 
-# Get start of actual time series range
+#' @rdname spidf_accessors
+#' @export
 get_range_start <- function(x) UseMethod("get_range_start")
+#' @rdname spidf_accessors
 #' @export
 get_range_start.spidf <- function(x) as.Date(attr(x, "range_start"))
 
-# Get end of actual time series range
+#' @rdname spidf_accessors
+#' @export
 get_range_end <- function(x) UseMethod("get_range_end")
+#' @rdname spidf_accessors
 #' @export
 get_range_end.spidf <- function(x) as.Date(attr(x, "range_end"))
 
+#' @rdname spidf_accessors
+#' @export
 get_tree_id <- function(x) UseMethod("get_tree_id")
+#' @rdname spidf_accessors
 #' @export
 get_tree_id.spidf <- function(x) attr(x, "tree_id")
 
-# Buffer metadata
+#' @rdname spidf_accessors
+#' @export
 get_use_buffer <- function(x) UseMethod("get_use_buffer")
+#' @rdname spidf_accessors
 #' @export
 get_use_buffer.spidf <- function(x) attr(x, "use_buffer")
 
+#' @rdname spidf_accessors
+#' @export
 get_buffer_radius_m <- function(x) UseMethod("get_buffer_radius_m")
+#' @rdname spidf_accessors
 #' @export
 get_buffer_radius_m.spidf <- function(x) attr(x, "buffer_radius_m")
 
+#' @rdname spidf_accessors
+#' @export
 get_cloud_mask_threshold <- function(x) UseMethod("get_cloud_mask_threshold")
+#' @rdname spidf_accessors
 #' @export
 get_cloud_mask_threshold.spidf <- function(x) attr(x, "cloud_mask_threshold")
 
@@ -782,176 +863,235 @@ get_cloud_mask_threshold.spidf <- function(x) attr(x, "cloud_mask_threshold")
 ## SET Functions
 ## -------------------------------------------------------------
 
-# Set latitude attribute
+#' Set metadata on an `spidf` object
+#'
+#' These S3 generics and methods update metadata attributes stored on `spidf`
+#' objects. Setters return the modified object and do not perform full
+#' consistency checks across attributes or data columns. Date setters coerce
+#' values with [as.Date()], numeric setters coerce with [as.numeric()], integer
+#' setters coerce with [as.integer()], and logical setters coerce with
+#' [as.logical()] where shown by the method implementation.
+#'
+#' @param x An object, typically of class `spidf`.
+#' @param value Replacement metadata value.
+#'
+#' @return The modified object `x`.
+#' @family metadata helpers
+#' @aliases spidf_setters
+#' @rdname spidf_setters
+#' @export
 set_latitude <- function(x, value) UseMethod("set_latitude")
+#' @rdname spidf_setters
 #' @export
 set_latitude.spidf <- function(x, value) {
   attr(x, "lat") <- value
   x
 }
 
-# Set longitude attribute
+#' @rdname spidf_setters
+#' @export
 set_longitude <- function(x, value) UseMethod("set_longitude")
+#' @rdname spidf_setters
 #' @export
 set_longitude.spidf <- function(x, value) {
   attr(x, "lon") <- value
   x
 }
 
-# Set start_date attribute
+#' @rdname spidf_setters
+#' @export
 set_start_date <- function(x, value) UseMethod("set_start_date")
+#' @rdname spidf_setters
 #' @export
 set_start_date.spidf <- function(x, value) {
   attr(x, "start_date") <- as.Date(value)
   x
 }
 
-# Set end_date attribute
+#' @rdname spidf_setters
+#' @export
 set_end_date <- function(x, value) UseMethod("set_end_date")
+#' @rdname spidf_setters
 #' @export
 set_end_date.spidf <- function(x, value) {
   attr(x, "end_date") <- as.Date(value)
   x
 }
 
-# Set spi attribute
+#' @rdname spidf_setters
+#' @export
 set_spi <- function(x, value) UseMethod("set_spi")
+#' @rdname spidf_setters
 #' @export
 set_spi.spidf <- function(x, value) {
   attr(x, "spi") <- value
   x
 }
 
-# Set proc_level attribute
+#' @rdname spidf_setters
+#' @export
 set_proc_level <- function(x, value) UseMethod("set_proc_level")
+#' @rdname spidf_setters
 #' @export
 set_proc_level.spidf <- function(x, value) {
   attr(x, "proc_level") <- value
   x
 }
 
-# Set crs_code attribute
+#' @rdname spidf_setters
+#' @export
 set_crs_code <- function(x, value) UseMethod("set_crs_code")
+#' @rdname spidf_setters
 #' @export
 set_crs_code.spidf <- function(x, value) {
   attr(x, "crs_code") <- value
   x
 }
 
-# Set regularized attribute
+#' @rdname spidf_setters
+#' @export
 set_regularized <- function(x, value) UseMethod("set_regularized")
+#' @rdname spidf_setters
 #' @export
 set_regularized.spidf <- function(x, value) {
   attr(x, "regularized") <- as.logical(value)
   x
 }
 
-# Set regularize_method attribute
+#' @rdname spidf_setters
+#' @export
 set_regularize_method <- function(x, value) UseMethod("set_regularize_method")
+#' @rdname spidf_setters
 #' @export
 set_regularize_method.spidf <- function(x, value) {
   attr(x, "regularize_method") <- value
   x
 }
 
-# Set mov_window attribute
+#' @rdname spidf_setters
+#' @export
 set_mov_window <- function(x, value) UseMethod("set_mov_window")
+#' @rdname spidf_setters
 #' @export
 set_mov_window.spidf <- function(x, value) {
   attr(x, "mov_window") <- as.logical(value)
   x
 }
 
-# Set whit_smoothing attribute
+#' @rdname spidf_setters
+#' @export
 set_whit_smoothed <- function(x, value) UseMethod("set_whit_smoothed")
+#' @rdname spidf_setters
 #' @export
 set_whit_smoothed.spidf <- function(x, value) {
   attr(x, "whit_smoothing") <- as.logical(value)
   x
 }
 
-# Set mov_window_quantile attribute
+#' @rdname spidf_setters
+#' @export
 set_mov_window_quantile <- function(x, value) UseMethod("set_mov_window_quantile")
+#' @rdname spidf_setters
 #' @export
 set_mov_window_quantile.spidf <- function(x, value) {
   attr(x, "mov_window_quantile") <- as.numeric(value)
   x
 }
 
-# Set mov_window_size_days attribute
+#' @rdname spidf_setters
+#' @export
 set_mov_window_size_days <- function(x, value) UseMethod("set_mov_window_size_days")
+#' @rdname spidf_setters
 #' @export
 set_mov_window_size_days.spidf <- function(x, value) {
   attr(x, "mov_window_size_days") <- as.integer(value)
   x
 }
 
-# Set whit_lambda attribute
+#' @rdname spidf_setters
+#' @export
 set_whit_lambda <- function(x, value) UseMethod("set_whit_lambda")
+#' @rdname spidf_setters
 #' @export
 set_whit_lambda.spidf <- function(x, value) {
   attr(x, "whit_lambda") <- as.numeric(value)
   x
 }
 
-# Set whit_quantile_threshold attribute
+#' @rdname spidf_setters
+#' @export
 set_whit_quantile_threshold <- function(x, value) UseMethod("set_whit_quantile_threshold")
+#' @rdname spidf_setters
 #' @export
 set_whit_quantile_threshold.spidf <- function(x, value) {
   attr(x, "whit_quantile_threshold") <- as.numeric(value)
   x
 }
 
-# Set whit_weights_used attribute
+#' @rdname spidf_setters
+#' @export
 set_whit_weights_used <- function(x, value) UseMethod("set_whit_weights_used")
+#' @rdname spidf_setters
 #' @export
 set_whit_weights_used.spidf <- function(x, value) {
   attr(x, "whit_weights_used") <- as.logical(value)
   x
 }
 
-# Set range_start attribute
+#' @rdname spidf_setters
+#' @export
 set_range_start <- function(x, value) UseMethod("set_range_start")
+#' @rdname spidf_setters
 #' @export
 set_range_start.spidf <- function(x, value) {
   attr(x, "range_start") <- as.Date(value)
   x
 }
 
-# Set range_end attribute
+#' @rdname spidf_setters
+#' @export
 set_range_end <- function(x, value) UseMethod("set_range_end")
+#' @rdname spidf_setters
 #' @export
 set_range_end.spidf <- function(x, value) {
   attr(x, "range_end") <- as.Date(value)
   x
 }
 
-# Set tree_id attribute
+#' @rdname spidf_setters
+#' @export
 set_tree_id <- function(x, value) UseMethod("set_tree_id")
+#' @rdname spidf_setters
 #' @export
 set_tree_id.spidf <- function(x, value) {
   attr(x, "tree_id") <- value
   x
 }
 
-# Set use_buffer attribute
+#' @rdname spidf_setters
+#' @export
 set_use_buffer <- function(x, value) UseMethod("set_use_buffer")
+#' @rdname spidf_setters
 #' @export
 set_use_buffer.spidf <- function(x, value) {
   attr(x, "use_buffer") <- as.logical(value)
   x
 }
 
-# Set buffer_radius_m attribute
+#' @rdname spidf_setters
+#' @export
 set_buffer_radius_m <- function(x, value) UseMethod("set_buffer_radius_m")
+#' @rdname spidf_setters
 #' @export
 set_buffer_radius_m.spidf <- function(x, value) {
   attr(x, "buffer_radius_m") <- as.numeric(value)
   x
 }
 
-# Set cloud_mask_threshold attribute
+#' @rdname spidf_setters
+#' @export
 set_cloud_mask_threshold <- function(x, value) UseMethod("set_cloud_mask_threshold")
+#' @rdname spidf_setters
 #' @export
 set_cloud_mask_threshold.spidf <- function(x, value) {
   attr(x, "cloud_mask_threshold") <- as.numeric(value)

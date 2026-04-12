@@ -1,5 +1,17 @@
 
 
+#' Create a break-detection result container
+#'
+#' Initializes a `ts_breaks` object for an `spidf` time series. The container
+#' stores the original time series and a nested list of break-detection runs
+#' grouped by algorithm name.
+#'
+#' @param spidf_ts An object of class `spidf`.
+#'
+#' @return An object of class `ts_breaks` with elements `spidf_ts` and
+#'   `algorithms`.
+#' @family break result helpers
+#' @export
 ltm_ts_breaks <- function(spidf_ts) {
 
 
@@ -17,6 +29,19 @@ ltm_ts_breaks <- function(spidf_ts) {
 }
 
 
+#' Add break-detection runs to a `ts_breaks` container
+#'
+#' Adds one or more `ts_breaks_run` objects to a `ts_breaks` container. Runs are
+#' grouped by their `method` field and assigned sequential run identifiers such
+#' as `"run-01"`.
+#'
+#' @param ts_breaks_obj An object of class `ts_breaks`.
+#' @param ... One or more objects of class `ts_breaks_run`, typically returned
+#'   by the break-detection wrapper functions.
+#'
+#' @return The updated `ts_breaks` object.
+#' @family break result helpers
+#' @export
 ltm_add_runs <- function(ts_breaks_obj, ...) {
 
   if (!inherits(ts_breaks_obj, "ts_breaks")) {
@@ -105,11 +130,26 @@ ltm_add_runs <- function(ts_breaks_obj, ...) {
 }
 
 
+#' List algorithms stored in a `ts_breaks` container
+#'
+#' @param ts_breaks_obj An object of class `ts_breaks`.
+#' @return Character vector of algorithm names.
+#' @family break result helpers
+#' @export
 ltm_get_algorithms <- function(ts_breaks_obj) {
   stopifnot(inherits(ts_breaks_obj, "ts_breaks"))
   names(ts_breaks_obj$algorithms)
 }
 
+#' List run identifiers for an algorithm
+#'
+#' @param ts_breaks_obj An object of class `ts_breaks`.
+#' @param algorithm_name Character scalar algorithm name present in
+#'   `ts_breaks_obj`.
+#'
+#' @return Character vector of run identifiers for `algorithm_name`.
+#' @family break result helpers
+#' @export
 ltm_get_runs <- function(ts_breaks_obj, algorithm_name) {
   stopifnot(inherits(ts_breaks_obj, "ts_breaks"))
   if (!algorithm_name %in% names(ts_breaks_obj$algorithms)) {
@@ -118,6 +158,16 @@ ltm_get_runs <- function(ts_breaks_obj, algorithm_name) {
   names(ts_breaks_obj$algorithms[[algorithm_name]])
 }
 
+#' Retrieve one break-detection run
+#'
+#' @param ts_breaks_obj An object of class `ts_breaks`.
+#' @param algorithm_name Character scalar algorithm name present in
+#'   `ts_breaks_obj`.
+#' @param run_id Character scalar run identifier for `algorithm_name`.
+#'
+#' @return A list representing one stored `ts_breaks_run`.
+#' @family break result helpers
+#' @export
 ltm_get_run_details <- function(ts_breaks_obj, algorithm_name, run_id) {
   stopifnot(inherits(ts_breaks_obj, "ts_breaks"))
   if (!algorithm_name %in% names(ts_breaks_obj$algorithms)) {
@@ -130,8 +180,21 @@ ltm_get_run_details <- function(ts_breaks_obj, algorithm_name, run_id) {
 }
 
 
-# Generic print for a ts_breaks container (multiple algorithms and runs)
-# Shows long-term aggregation, short-term aggregation, and short-term trend validators.
+#' Print a `ts_breaks` container
+#'
+#' Displays a formatted summary of break-detection runs grouped by algorithm.
+#' The output includes detected break indices and dates, long-term validation,
+#' short-term validation, short-term trend validation, and available diagnostic
+#' metrics for each stored run.
+#'
+#' @param x An object of class `ts_breaks`.
+#' @param digits Integer number of decimal places used for numeric values.
+#' @param max_breaks Integer maximum number of break indices or dates printed
+#'   before truncating each list.
+#' @param ... Additional arguments passed to print methods.
+#'
+#' @return Invisibly returns `x`.
+#' @method print ts_breaks
 #' @export
 print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
   stopifnot(is.list(x))
@@ -257,8 +320,23 @@ print.ts_breaks <- function(x, digits = 3, max_breaks = 5, ...) {
 }
 
 
-# Convert a ts_breaks container into a flat data.frame (one row per run).
-# Assumes each run reports at most one "primary" break.
+#' Convert a `ts_breaks` container to a data frame
+#'
+#' Flattens a `ts_breaks` container into one row per stored run. Each row
+#' contains algorithm metadata, the primary detected break when present,
+#' long-term validation fields, short-term validation fields, and randomized
+#' trend-validation diagnostics.
+#'
+#' @param x An object of class `ts_breaks`.
+#' @param row.names Ignored; included for compatibility with
+#'   [as.data.frame()].
+#' @param optional Ignored; included for compatibility with [as.data.frame()].
+#' @param ... Additional arguments ignored by this method.
+#'
+#' @return A data frame with a stable schema containing one row per stored run.
+#'   Empty containers return a zero-row data frame with the same columns.
+#' @family break result helpers
+#' @method as.data.frame ts_breaks
 #' @export
 as.data.frame.ts_breaks <- function(x, row.names = NULL, optional = FALSE, ...) {
 

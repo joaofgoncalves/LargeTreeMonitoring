@@ -11,7 +11,7 @@ run_ltm_app(config_path = NULL, ...)
 package uses the user-specific configuration file in the standard R user
 config directory, creating it from the default template when needed.}
 
-\item{...}{Arguments passed to [shiny::runApp()].}
+\item{...}{Arguments passed to \code{\link[shiny:runApp]{shiny::runApp()}}.}
 }
 \description{
 Launches the packaged Shiny application for analysing satellite-image time

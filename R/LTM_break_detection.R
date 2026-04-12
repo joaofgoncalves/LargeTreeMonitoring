@@ -2,17 +2,46 @@
 
 # helpers ---------------------------------------------------------------
 
+#' Bound an integer sequence to valid series indices
+#'
+#' @param lo Lower sequence endpoint.
+#' @param hi Upper sequence endpoint.
+#' @param n Maximum valid index.
+#' @return Integer vector clipped to the interval `[1, n]`.
+#' @keywords internal
+#' @noRd
 bound_idx <- function(lo, hi, n) pmax(1, pmin(n, seq.int(lo, hi)))
 
 
+#' Check whether a length is large enough
+#'
+#' @param n Candidate length.
+#' @param min_n Minimum allowed length.
+#' @return Logical scalar.
+#' @keywords internal
+#' @noRd
 is_len_ok <- function(n, min_n = 3) is.finite(n) && n >= min_n
 
 
+#' Compute percentage change
+#'
+#' @param post Numeric post-break summary value.
+#' @param pre Numeric pre-break summary value.
+#' @return Numeric percent change from `pre` to `post`, or `NA` when `pre` is
+#'   not finite or effectively zero.
+#' @keywords internal
+#' @noRd
 pct_change <- function(post, pre) {
   if (!is.finite(pre) || abs(pre) < .Machine$double.eps) return(NA)
   return(((post - pre) / pre) * 100)
 }
 
+#' Normalize a long-term validation window
+#'
+#' @param lt_window Candidate long-term window value.
+#' @return `NULL` for full-series validation or a positive integer window size.
+#' @keywords internal
+#' @noRd
 ltm_normalize_lt_window <- function(lt_window) {
   if (is.null(lt_window)) {
     return(NULL)
@@ -42,6 +71,16 @@ ltm_normalize_lt_window <- function(lt_window) {
   as.integer(lt_window_num)
 }
 
+#' Resolve deprecated long-term validation arguments
+#'
+#' @param dots List of arguments supplied through `...`.
+#' @param lt_window Current `lt_window` value.
+#' @param lt_thresh_change Current `lt_thresh_change` value.
+#' @param call Optional matched call used to detect conflicting new arguments.
+#' @return List containing remaining `dots`, normalized `lt_window`, and
+#'   resolved `lt_thresh_change`.
+#' @keywords internal
+#' @noRd
 ltm_resolve_deprecated_lt_args <- function(dots,
                                            lt_window,
                                            lt_thresh_change,
@@ -87,6 +126,13 @@ ltm_resolve_deprecated_lt_args <- function(dots,
 
 
 # steps per year from the date vector (handles irregular cadence)
+#' Estimate observations per year from dates
+#'
+#' @param dts Date vector.
+#' @return Numeric observations per year based on the median date spacing, or
+#'   `NA` when it cannot be estimated.
+#' @keywords internal
+#' @noRd
 ltm_steps_per_year <- function(dts) {
   if (length(dts) < 3) return(NA)
   dd <- as.numeric(median(diff(dts)), units = "days")
@@ -97,6 +143,14 @@ ltm_steps_per_year <- function(dts) {
 ## -------------------------------------------------------------------------------- ##
 
 
+#' Get a readable validator function label from a call
+#'
+#' @param call_obj Function call object, usually stored on a `ts_breaks_run`.
+#' @param arg_name Character scalar argument name to inspect.
+#' @param default Character scalar returned when no label can be resolved.
+#' @return Character scalar label.
+#' @keywords internal
+#' @noRd
 ltm_get_validator_fun_label <- function(call_obj, arg_name, default = "-") {
   if (is.null(call_obj) || is.null(arg_name) || !nzchar(arg_name)) {
     return(default)
@@ -278,6 +332,15 @@ print.ts_breaks_run <- function(x, digits = 4, ...) {
 
 
 # Convert slope (per-step) to %/yr given a baseline level
+#' Convert a slope to percent per year
+#'
+#' @param slope_per_step Numeric slope per observation step.
+#' @param baseline Numeric baseline used as the percentage denominator.
+#' @param steps_per_year Numeric number of observation steps per year.
+#' @return Numeric slope expressed as percent per year, or `NA` when the
+#'   conversion is not well-defined.
+#' @keywords internal
+#' @noRd
 ltm_pct_slope <- function(slope_per_step, baseline, steps_per_year) {
   if (!is.finite(slope_per_step) || !is.finite(baseline) ||
       !is.finite(steps_per_year) || steps_per_year <= 0 ||
@@ -366,7 +429,7 @@ ltm_pct_slope <- function(slope_per_step, baseline, steps_per_year) {
 #'   the pre-break baseline.
 #' }
 #'
-#' @keywords internal
+#' @export
 #'
 ltm_trend_validator_randomized <- function(ysa, dts, brk,
                                            trend_window,          # half-window on each side
@@ -921,6 +984,32 @@ brk_candidates[1]
   }
 
 
+#' Detect breakpoints using change-point models
+#'
+#' Applies [cpm::detectChangePoint()] to a selected time-series column in an
+#' `spidf` object and returns one `ts_breaks_run` object. Missing values are
+#' interpolated before optional seasonal adjustment. When a change point is
+#' detected, the wrapper evaluates the same long-term, short-term, and
+#' randomized trend validators used by the other break-detection wrappers.
+#'
+#' @inheritParams ltm_ed_detect_breaks
+#' @param cpm_method Character scalar passed to the `cpmType` argument of
+#'   [cpm::detectChangePoint()].
+#' @param ARL0 Numeric average run length parameter passed to
+#'   [cpm::detectChangePoint()].
+#'
+#' @return An object of class `ts_breaks_run` with method `"cpm"`. The object
+#'   records the detected change point, its date, validation flags and
+#'   diagnostics, the raw `cpm::detectChangePoint()` result in `output_object`,
+#'   and the matched call.
+#'
+#' @details
+#' The CPM startup period is computed as the number of days between the
+#' available series start date and `thresh_date`. Extra arguments in `...` are
+#' passed to [cpm::detectChangePoint()] after resolving deprecated
+#' LargeTreeMonitoring aliases `tresh_int` and `thresh_change`.
+#' @family break-detection wrappers
+#' @export
 ltm_cpm_detect_breaks <- function(spidf,
                                   season_adj = TRUE,
                                   ts_name = "spi",
@@ -1201,6 +1290,38 @@ ltm_cpm_detect_breaks <- function(spidf,
 #
 # TODO: Check if seasonal adjustment should be used for bfast since it handles stl internally
 
+#' Detect breakpoints using BFAST01
+#'
+#' Applies [bfast::bfast01()] to a selected `spidf` time-series column and
+#' returns one `ts_breaks_run` object. Detection is performed by BFAST01 on the
+#' converted `ts` series. Break magnitude and validation diagnostics are
+#' computed from fitted values, with seasonal adjustment applied to those fitted
+#' values when the series is long enough for STL decomposition.
+#'
+#' @inheritParams ltm_ed_detect_breaks
+#' @param formula Formula passed to [bfast::bfast01()]. The default models the
+#'   response with harmonic seasonal terms and trend.
+#' @param test Character scalar test name passed to [bfast::bfast01()].
+#' @param level Numeric significance level passed to [bfast::bfast01()].
+#' @param aggregate Function passed to [bfast::bfast01()] for aggregating test
+#'   results.
+#' @param trim Optional trimming parameter passed to [bfast::bfast01()].
+#' @param bandwidth Numeric bandwidth passed to [bfast::bfast01()].
+#' @param functional Character scalar functional passed to [bfast::bfast01()].
+#' @param order Integer harmonic order passed to [bfast::bfast01()].
+#'
+#' @return An object of class `ts_breaks_run` with method `"bfast01"`. The
+#'   object records the selected break, validation flags and diagnostics, the
+#'   raw `bfast::bfast01()` result in `output_object`, and the matched call.
+#'
+#' @details
+#' Extra arguments in `...` are passed to [bfast::bfast01()] after resolving
+#' deprecated LargeTreeMonitoring aliases `tresh_int` and `thresh_change`.
+#' Although this wrapper has an `s_window` argument for validation-time seasonal
+#' adjustment of fitted values, it does not expose a `season_adj` argument and
+#' records `season_adj = FALSE` in its return object.
+#' @family break-detection wrappers
+#' @export
 ltm_bfast01_detect_breaks <- function(
     spidf,
     ts_name       = "spi",
@@ -1486,6 +1607,18 @@ ltm_bfast01_detect_breaks <- function(
 
 
 
+#' Summarize an MCP fit
+#'
+#' @param object An object of class `mcpfit`.
+#' @param width Numeric credible interval width passed to the MCP summary
+#'   method.
+#' @param digits Non-negative integer number of digits passed to the MCP
+#'   summary method.
+#' @param prior Logical scalar indicating whether prior summaries are requested.
+#' @param ... Unused; an error is raised if arguments are supplied.
+#' @return The result returned by the `summary.mcpfit` method.
+#' @keywords internal
+#' @noRd
 mcpSummary <- function(object, width = 0.95, digits = 2,
                        prior = FALSE, ...) {
   fit <- object
@@ -1527,6 +1660,21 @@ mcpSummary <- function(object, width = 0.95, digits = 2,
   result
 }
 
+#' Diagnose uncertainty in MCP summary parameters
+#'
+#' @param df Data frame with MCP parameter summary columns `mean`, `lower`,
+#'   `upper`, `Rhat`, and `n.eff`.
+#' @param w_width Weight for relative interval width.
+#' @param w_rhat Weight for deviation of `Rhat` from 1.
+#' @param w_neff Weight for inverse effective sample size.
+#' @param cutoff_low Numeric cutoff below which uncertainty is classified as
+#'   low.
+#' @param cutoff_med Numeric cutoff below which uncertainty is classified as
+#'   medium.
+#' @return List with numeric `uncertainty_score` and character
+#'   `classification`.
+#' @keywords internal
+#' @noRd
 diagnose_uncertainty <- function(df,
                                  w_width = 1,
                                  w_rhat  = 1,
@@ -1560,6 +1708,87 @@ diagnose_uncertainty <- function(df,
 }
 
 # --- MCP wrapper with short-term trend validator -------------------------
+#' Detect breakpoints using Bayesian change-point models
+#'
+#' Fits a two-segment intercept-only model with [mcp::mcp()] to a selected
+#' `spidf` time-series column and returns one `ts_breaks_run` object. The model
+#' is fit against a seasonally adjusted series when `season_adj = TRUE` and the
+#' series is long enough for STL decomposition.
+#'
+#' @inheritParams ltm_ed_detect_breaks
+#' @param sample Character scalar passed to the `sample` argument of
+#'   [mcp::mcp()].
+#' @param n_chains Integer number of MCMC chains passed to [mcp::mcp()].
+#' @param n_cores Integer number of cores passed to [mcp::mcp()].
+#' @param n_adapt Integer adaptation length passed to [mcp::mcp()].
+#' @param n_iter Integer iteration count passed to [mcp::mcp()].
+#' @param downsample Optional positive integer. When supplied, the input series
+#'   is sampled every `downsample` rows before model fitting.
+#'
+#' @return An object of class `ts_breaks_run` with method `"mcp"`. In addition
+#'   to the shared break and validator fields, the object includes MCP-specific
+#'   `pars` and `uncertainty_diag` entries when parameter summaries are
+#'   available.
+#'
+#' @details
+#' The wrapper uses internally defined priors based on empirical quantiles and
+#' standard deviation of the analysis series. Extra arguments in `...` are
+#' passed to [mcp::mcp()] after resolving deprecated LargeTreeMonitoring aliases
+#' `tresh_int` and `thresh_change`.
+#'
+#' Fits a Bayesian one-change-point step model to a preprocessed analysis series
+#' using mcp::mcp(). The analysis series is obtained by optional NA interpolation
+#' followed by optional STL-based seasonal adjustment. The fitted mcp model is
+#' list(ysa ~ 1, ~ 1) with par_x = "di", implying two constant-mean segments
+#' separated by one estimated changepoint. Priors are data-dependent and
+#' directional, favoring a decrease from the first segment level to the second.
+#'
+#' Let \eqn{y_i} denote the raw input series at ordered observations
+#' \eqn{i = 1, \ldots, n}. Missing values are deterministically interpolated
+#' before model fitting; denote the interpolated series by \eqn{\tilde{y}_i}.
+#' If seasonal adjustment is enabled and feasible, the fitted series is
+#' \eqn{z_i = SA(\tilde{y}_i)}, where \eqn{SA(\cdot)} denotes STL-based seasonal
+#' adjustment. Otherwise, \eqn{z_i = \tilde{y}_i}.
+#'
+#' The MCP specification `list(ysa ~ 1, ~ 1)` with `par_x = "di"` defines a
+#' one-change-point Gaussian step model on \eqn{z_i}:
+#'
+#' \deqn{
+#' z_i \mid c, \alpha_1, \alpha_2, \sigma \sim \mathrm{Normal}(\mu_i, \sigma^2)
+#' }
+#'
+#' \deqn{
+#' \mu_i = \alpha_1 I(i < c) + \alpha_2 I(i \ge c), \qquad i = 1, \ldots, n
+#' }
+#'
+#' where \eqn{c = cp_1} is the break index, \eqn{\alpha_1 = int_1} is the
+#' pre-break level, and \eqn{\alpha_2 = int_2} is the post-break level.
+#'
+#' The wrapper uses empirical, data-dependent priors:
+#'
+#' \deqn{
+#' \alpha_1 \sim \mathrm{Normal}(q_{0.75}, s^2)\ \text{truncated to}\ [0, 1]
+#' }
+#'
+#' \deqn{
+#' \alpha_2 \sim \mathrm{Normal}(q_{0.25}, s^2)\ \text{truncated to}\ [0, \alpha_1]
+#' }
+#'
+#' \deqn{
+#' c \sim \mathrm{Uniform}(1, n)
+#' }
+#'
+#' where \eqn{q_{0.75}} and \eqn{q_{0.25}} are the empirical 75th and 25th
+#' percentiles of the analysis series and \eqn{s} is its empirical standard
+#' deviation.
+#'
+#' This prior specification encodes a directed alternative in which the
+#' post-break level cannot exceed the pre-break level. Accordingly, the model is
+#' designed to detect downward level shifts rather than arbitrary changes in
+#' mean level.
+#'
+#' @family break-detection wrappers
+#' @export
 ltm_mcp_detect_breaks <- function(spidf,
                                   ts_name    = "spi",
                                   season_adj = TRUE,
@@ -1876,6 +2105,31 @@ ltm_mcp_detect_breaks <- function(spidf,
 }
 
 
+#' Detect breakpoints using structural-change segmentation
+#'
+#' Applies [strucchangeRcpp::breakpoints()] to a selected `spidf` time-series
+#' column and returns one `ts_breaks_run` object. Missing values are
+#' interpolated before optional STL seasonal adjustment. The first breakpoint
+#' returned by the structural-change fit is used as the primary break and is
+#' evaluated with the shared validators.
+#'
+#' @inheritParams ltm_ed_detect_breaks
+#' @param h Numeric trimming parameter passed to
+#'   [strucchangeRcpp::breakpoints()].
+#' @param breaks Integer requested number of breaks passed to
+#'   [strucchangeRcpp::breakpoints()].
+#'
+#' @return An object of class `ts_breaks_run` with method `"stc"`. The object
+#'   records the selected structural-change breakpoint, validation fields, the
+#'   raw `strucchangeRcpp::breakpoints()` result in `output_object`, and the
+#'   matched call.
+#'
+#' @details
+#' Extra arguments in `...` are passed to [strucchangeRcpp::breakpoints()] after
+#' resolving deprecated LargeTreeMonitoring aliases `tresh_int` and
+#' `thresh_change`.
+#' @family break-detection wrappers
+#' @export
 ltm_strucchange_detect_breaks <- function(
     spidf,
     ts_name    = "spi",
@@ -2193,6 +2447,27 @@ ltm_strucchange_detect_breaks <- function(
 
 
 
+#' Detect breakpoints using wild binary segmentation
+#'
+#' Applies [wbs::wbs()] followed by [wbs::changepoints()] to a selected `spidf`
+#' time-series column and returns one `ts_breaks_run` object. Missing values are
+#' interpolated before optional STL seasonal adjustment. The first selected WBS
+#' change point is used as the primary break and is evaluated with the shared
+#' validators.
+#'
+#' @inheritParams ltm_ed_detect_breaks
+#' @param num_intervals Integer number of random intervals passed to
+#'   [wbs::wbs()] as `numIntervals`.
+#'
+#' @return An object of class `ts_breaks_run` with method `"wbs"`. The object
+#'   records the selected WBS breakpoint, validation fields, the
+#'   `wbs::changepoints()` result in `output_object`, and the matched call.
+#'
+#' @details
+#' Extra arguments in `...` are passed to [wbs::changepoints()] after resolving
+#' deprecated LargeTreeMonitoring aliases `tresh_int` and `thresh_change`.
+#' @family break-detection wrappers
+#' @export
 ltm_wbs_detect_breaks <- function(spidf,
                                   ts_name    = "spi",
                                   season_adj = TRUE,
@@ -2208,7 +2483,7 @@ ltm_wbs_detect_breaks <- function(spidf,
                                   st_thresh_change = -10,
                                   st_fun           = median,
                                   # --- trend check ---
-                                  trend_window               = NULL,                 # integer; if set, enables trend validator
+                                  trend_window               = NULL, # integer; if set, enables trend validator
                                   trend_require_lower_level  = TRUE,
                                   trend_rand_B               = 99,
                                   trend_rand_seed            = 11235,

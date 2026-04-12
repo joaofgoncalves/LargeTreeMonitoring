@@ -2,20 +2,20 @@
 % Please edit documentation in R/LTM_gee_data.R
 \name{print.spidf}
 \alias{print.spidf}
-\title{Print method for `spidf` (spectral index dataframe) objects}
+\title{Print method for \code{spidf} (spectral index dataframe) objects}
 \usage{
 \method{print}{spidf}(x, ...)
 }
 \arguments{
-\item{x}{An object of class `spidf`.}
+\item{x}{An object of class \code{spidf}.}
 
-\item{...}{Additional arguments passed to the default `print` method.}
+\item{...}{Additional arguments passed to the default \code{print} method.}
 }
 \value{
-Invisibly returns `x`.
+Invisibly returns \code{x}.
 }
 \description{
-Displays a summary of a spectral index time series stored as an `spidf`
+Displays a summary of a spectral index time series stored as an \code{spidf}
 object, including spatial location, requested and available time ranges,
 spectral index type, processing level, coordinate system, and preprocessing
 status flags. The underlying data frame is then printed using the default
