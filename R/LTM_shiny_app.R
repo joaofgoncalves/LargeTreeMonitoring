@@ -574,6 +574,244 @@ ltm_app_startup <- function(config_path = NULL) {
   )
 }
 
+ltm_control_grid <- function(...) {
+  tags$div(class = "ltm-control-grid", ...)
+}
+
+ltm_help_text <- function(text) {
+  tags$p(class = "ltm-help", text)
+}
+
+ltm_workflow_status_badge <- function(label) {
+  status_key <- tolower(gsub("[^[:alnum:]]+", "-", label))
+  status_key <- gsub("(^-|-$)", "", status_key)
+
+  tags$span(
+    class = paste("ltm-status-badge", paste0("ltm-status-", status_key)),
+    label
+  )
+}
+
+ltm_workflow_step_ui <- function(
+    step_id,
+    step_number,
+    title,
+    status_output_id,
+    summary_output_id,
+    open = FALSE,
+    ...
+) {
+  panel_id <- paste0("workflow_step_", step_id)
+  body_id <- paste0(panel_id, "_body")
+  body_class <- paste(
+    "panel-collapse collapse",
+    if (isTRUE(open)) "in" else ""
+  )
+
+  tags$section(
+    id = panel_id,
+    class = "ltm-workflow-step panel panel-default",
+    tags$div(
+      class = "ltm-step-heading panel-heading",
+      tags$a(
+        class = "ltm-step-toggle",
+        href = paste0("#", body_id),
+        `data-toggle` = "collapse",
+        `aria-expanded` = if (isTRUE(open)) "true" else "false",
+        tags$span(class = "ltm-step-number", step_number),
+        tags$span(class = "ltm-step-title", title),
+        shiny::uiOutput(status_output_id, inline = TRUE),
+        tags$span(
+          class = "ltm-step-summary",
+          shiny::uiOutput(summary_output_id, inline = TRUE)
+        )
+      )
+    ),
+    tags$div(
+      id = body_id,
+      class = body_class,
+      tags$div(class = "ltm-step-body panel-body", ...)
+    )
+  )
+}
+
+ltm_validator_controls_ui <- function() {
+  tagList(
+    tags$div(class = "ltm-subsection-title", "Long-term validator"),
+    ltm_control_grid(
+      shiny::numericInput(
+        "lt_window",
+        "Long-term window (observations per side; 0 = full series)",
+        value = 0,
+        min = 0,
+        max = 365,
+        step = 1
+      ),
+      shiny::numericInput(
+        "lt_thresh_change",
+        "Long-term % change threshold",
+        value = -10,
+        max = 0
+      )
+    ),
+    shiny::radioButtons(
+      inputId = "lt_fun",
+      label = "Long-term aggregation function",
+      choices = ltm_validator_fun_choices(),
+      selected = "Median"
+    ),
+
+    tags$div(class = "ltm-subsection-title", "Short-term validator"),
+    ltm_control_grid(
+      shiny::numericInput(
+        "st_window",
+        "Short-term window (observations per side; 0 disables)",
+        value = 30,
+        min = 0,
+        max = 365,
+        step = 1
+      ),
+      shiny::numericInput(
+        "st_thresh_change",
+        "Short-term % change threshold",
+        value = -10,
+        max = 0
+      )
+    ),
+    shiny::radioButtons(
+      inputId = "st_fun",
+      label = "Short-term aggregation function",
+      choices = ltm_validator_fun_choices(),
+      selected = "Median"
+    ),
+
+    tags$div(class = "ltm-subsection-title", "Short-term trend validator"),
+    ltm_control_grid(
+      shiny::numericInput(
+        "trend_window",
+        "Trend window (observations per side; 0 disables)",
+        value = 30,
+        min = 0,
+        max = 365,
+        step = 1
+      ),
+      shiny::numericInput(
+        "trend_post_pct_thresh",
+        "Trend post-break % threshold",
+        value = -10,
+        max = 0
+      ),
+      shiny::numericInput(
+        "trend_alpha",
+        "Trend alpha",
+        value = 0.05,
+        min = 0,
+        max = 1,
+        step = 0.01
+      ),
+      shiny::numericInput(
+        "trend_deficit_tol",
+        "Trend deficit tolerance",
+        value = 0.05,
+        min = 0,
+        max = 1,
+        step = 0.01
+      ),
+      shiny::numericInput(
+        "trend_min_prop_below",
+        "Trend minimum proportion below baseline",
+        value = 0.6,
+        min = 0,
+        max = 1,
+        step = 0.05
+      ),
+      shiny::numericInput(
+        "trend_avg_deficit_thresh",
+        "Trend average deficit threshold (%)",
+        value = -1.5,
+        max = 0,
+        step = 0.1
+      )
+    )
+  )
+}
+
+ltm_current_request_key <- function(
+    coord_request,
+    start_date,
+    end_date,
+    spi,
+    proc_level
+) {
+  if (is.null(coord_request) || inherits(coord_request, "error")) {
+    return(NULL)
+  }
+
+  if (
+    is.null(start_date) || is.null(end_date) ||
+      length(start_date) != 1L || length(end_date) != 1L ||
+      is.na(start_date) || is.na(end_date) ||
+      !ltm_has_path_value(spi) || !ltm_has_path_value(proc_level)
+  ) {
+    return(NULL)
+  }
+
+  list(
+    lat = round(as.numeric(coord_request$lat), 6),
+    lon = round(as.numeric(coord_request$lon), 6),
+    tree_id = if (is.null(coord_request$tree_id)) "" else as.character(coord_request$tree_id),
+    start_date = as.character(start_date),
+    end_date = as.character(end_date),
+    spi = as.character(spi),
+    proc_level = as.character(proc_level)
+  )
+}
+
+ltm_spidf_has_columns <- function(spidf, columns) {
+  !is.null(spidf) && all(columns %in% names(spidf))
+}
+
+ltm_workflow_state <- function(
+    target_request = NULL,
+    current_request_key = NULL,
+    spidf = NULL,
+    fetched_request_key = NULL,
+    break_results = NULL
+) {
+  target_ready <- !is.null(target_request) &&
+    !inherits(target_request, "error") &&
+    !is.null(current_request_key)
+
+  has_data <- !is.null(spidf)
+  data_ready <- target_ready &&
+    has_data &&
+    !is.null(fetched_request_key) &&
+    identical(current_request_key, fetched_request_key)
+  data_stale <- has_data && !isTRUE(data_ready)
+
+  regularized <- has_data &&
+    isTRUE(tryCatch(is_regularized(spidf), error = function(error) FALSE))
+  has_moving_window <- ltm_spidf_has_columns(spidf, "spi_mov_wind")
+  has_whittaker <- ltm_spidf_has_columns(spidf, c("spi_smooth", "spi_mov_smooth"))
+  preprocess_ready <- data_ready &&
+    regularized &&
+    has_moving_window &&
+    has_whittaker
+  breaks_ready <- preprocess_ready && !is.null(break_results)
+
+  list(
+    target_ready = target_ready,
+    data_ready = data_ready,
+    preprocess_ready = preprocess_ready,
+    breaks_ready = breaks_ready,
+    data_stale = data_stale,
+    has_data = has_data,
+    regularized = regularized,
+    has_moving_window = has_moving_window,
+    has_whittaker = has_whittaker
+  )
+}
+
 
 #' Create the LargeTreeMonitoring Shiny app
 #'
@@ -601,45 +839,242 @@ ltm_app <- function(config_path = NULL) {
 
     tags$head(
       tags$style(shiny::HTML("
-      .resizable-sidebar {
-        resize: horizontal;
-        overflow: auto;
-        min-width: 200px;
-        max-width: 450px;
-        padding-right: 10px;
-        border-right: 1px solid #ccc;
-        background-color: #4a5e68;
-        color: #1b4040;
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: #FFFFFF;
+        color: #202a27;
+        padding-top: 76px;
+      }
+      .ltm-banner {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background-color: #1f5a4f;
+        color: #ffffff;
+        padding: 8px 20px;
+        z-index: 1000;
+        border-bottom: 1px solid #17473f;
+      }
+      .ltm-banner h2 {
+        margin: 3px;
+        padding: 3px;
+        font-size: 24px;
+        color: #ffffff;
+      }
+      .ltm-app-shell {
+        display: flex;
+        align-items: flex-start;
+        gap: 18px;
+        padding: 16px 20px 24px;
+      }
+      .ltm-sidebar {
+        flex: 0 0 380px;
+        max-width: 430px;
+        max-height: calc(100vh - 96px);
+        overflow-y: auto;
+        position: sticky;
+        top: 88px;
+        background-color: #ffffff;
+        border: 1px solid #cfd8d5;
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .ltm-sidebar-header h3 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      .ltm-sidebar-header p {
+        color: #52635e;
+        font-size: 12px;
+        line-height: 1.35;
+        margin: 0 0 10px;
       }
       .main-panel {
-        padding-left: 20px;
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 0 0 20px;
       }
-      .form-group, .shiny-input-container {
-        margin-bottom: 8px;
-        font-size: 13px;
+      .form-group,
+      .shiny-input-container {
+        margin-bottom: 7px;
+        font-size: 12px;
+        width: 100%;
       }
       .shiny-input-label,
       .control-label,
       .checkbox label,
       .radio label {
-        color: #1b4040 !important;
+        color: #20342f !important;
         font-weight: 500;
       }
-      .form-control, .selectize-input {
-        background-color: #e0ebeb !important;
-        color: #2c3e50 !important;
-        border: 1px solid #95a5a6;
-        font-size: 13px;
-        height: 32px;
+      .form-control,
+      .selectize-input {
+        background-color: #f7fbfa !important;
+        color: #202a27 !important;
+        border: 1px solid #aebfba;
+        border-radius: 6px;
+        font-size: 12px;
+        min-height: 31px;
       }
       .form-control:focus,
+      .selectize-input.focus,
       .selectize-input:focus {
-        border-color: #6ba292;
-        box-shadow: none;
+        border-color: #2d7f6f;
+        box-shadow: 0 0 0 2px rgba(45, 127, 111, 0.16);
       }
       .selectize-dropdown-content {
-        background-color: #f4f6f6;
-        color: #2c3e50;
+        background-color: #ffffff;
+        color: #202a27;
+      }
+      .btn {
+        border: none;
+        border-radius: 6px;
+        background-color: #2d7f6f;
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 700;
+        margin-top: 3px;
+        padding: 6px 10px;
+      }
+      .btn:hover,
+      .btn:focus {
+        background-color: #23695c;
+        color: #ffffff;
+      }
+      .btn:disabled,
+      .btn.disabled {
+        background-color: #aab7b3 !important;
+        color: #eef3f1 !important;
+        cursor: not-allowed;
+      }
+      .ltm-primary-action {
+        width: 100%;
+      }
+      .ltm-inline-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .ltm-workflow-step.panel,
+      .ltm-validator-accordion.panel {
+        border-color: #d8e0dd;
+        border-radius: 8px;
+        box-shadow: none;
+        margin-bottom: 8px;
+        overflow: hidden;
+      }
+      .ltm-step-heading.panel-heading,
+      .ltm-validator-heading.panel-heading {
+        background-color: #eef5f2;
+        border-color: #d8e0dd;
+        padding: 0;
+      }
+      .ltm-step-toggle,
+      .ltm-validator-toggle {
+        color: #20342f;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 6px;
+        padding: 9px 10px;
+        text-decoration: none !important;
+      }
+      .ltm-step-toggle:hover,
+      .ltm-step-toggle:focus,
+      .ltm-validator-toggle:hover,
+      .ltm-validator-toggle:focus {
+        color: #20342f;
+        text-decoration: none;
+      }
+      .ltm-step-number {
+        align-items: center;
+        background-color: #20342f;
+        border-radius: 50%;
+        color: #ffffff;
+        display: inline-flex;
+        font-size: 11px;
+        font-weight: 700;
+        height: 22px;
+        justify-content: center;
+        width: 22px;
+      }
+      .ltm-step-title,
+      .ltm-validator-title {
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      .ltm-step-summary,
+      .ltm-validator-summary {
+        color: #52635e;
+        font-size: 11px;
+        grid-column: 2 / 4;
+        line-height: 1.25;
+      }
+      .ltm-step-body.panel-body,
+      .ltm-validator-body.panel-body {
+        padding: 10px;
+      }
+      .ltm-status-badge {
+        align-self: start;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        padding: 4px 7px;
+        white-space: nowrap;
+      }
+      .ltm-status-ready {
+        background-color: #dcefe8;
+        color: #14513d;
+      }
+      .ltm-status-complete {
+        background-color: #c8eadf;
+        color: #0d4734;
+      }
+      .ltm-status-needs-data,
+      .ltm-status-needs-preprocessing {
+        background-color: #f4ead2;
+        color: #694d00;
+      }
+      .ltm-status-out-of-date {
+        background-color: #ffe0ca;
+        color: #7a3d00;
+      }
+      .ltm-status-error {
+        background-color: #f8d7da;
+        color: #842029;
+      }
+      .ltm-control-grid {
+        display: grid;
+        gap: 6px 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .ltm-grid-full {
+        grid-column: 1 / -1;
+      }
+      .ltm-help,
+      .ltm-gate-notice,
+      .ltm-step-note {
+        color: #52635e;
+        font-size: 11px;
+        line-height: 1.35;
+        margin: 0 0 8px;
+      }
+      .ltm-gate-notice {
+        background-color: #f8f2df;
+        border: 1px solid #ead7a7;
+        border-radius: 6px;
+        color: #694d00;
+        padding: 7px 8px;
+      }
+      .ltm-ready-note {
+        background-color: #edf7f3;
+        border-color: #b8d8cc;
+        color: #14513d;
       }
       #latitude.ltm-coordinate-highlight,
       #longitude.ltm-coordinate-highlight {
@@ -648,309 +1083,365 @@ ltm_app <- function(config_path = NULL) {
         box-shadow: 0 0 0 2px rgba(148, 98, 0, 0.18);
       }
       .ltm-coordinate-status {
-        background-color: #f3f8f7;
-        border: 1px solid #8db6ad;
-        border-radius: 4px;
-        color: #1b4040;
-        font-size: 12px;
+        background-color: #edf7f3;
+        border: 1px solid #b8d8cc;
+        border-radius: 6px;
+        color: #14513d;
+        font-size: 11px;
         line-height: 1.35;
-        margin-bottom: 10px;
-        padding: 8px;
+        margin-bottom: 8px;
+        padding: 7px 8px;
       }
       .ltm-coordinate-status-warning {
         background-color: #fff3cd;
         border-color: #f0d98a;
         color: #5f4a00;
       }
-      .btn {
-        font-size: 13px;
-        padding: 6px 10px;
-        background-color: #6ba292;
-        color: #ffffff;
-        border: none;
-        font-weight: bold;
-        margin-top: 4px;
+      .ltm-map-picker {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        margin: 0 0 8px;
       }
-      .btn:hover {
-        background-color: #5a8d7c;
+      .ltm-map-picker .btn {
+        margin: 0;
       }
-      .ltm-banner {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        background-color: #354b5e;
-        color: #ffffff;
-        padding: 10px 20px;
-        z-index: 1000;
-        border-bottom: 1px solid #ccc;
+      .ltm-details {
+        border-top: 1px solid #e4ebe8;
+        margin-top: 9px;
+        padding-top: 8px;
       }
-      .ltm-banner h2 {
-        margin: 3px;
-        padding: 3px;
-        font-size: 25px;
-        color: #ffffff;
+      .ltm-details summary {
+        color: #20342f;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 700;
+        margin-bottom: 6px;
       }
-      body {
-        padding-top: 70px;
+      .ltm-subsection-title {
+        color: #20342f;
+        font-size: 12px;
+        font-weight: 700;
+        margin: 9px 0 5px;
       }
-
-      .scrollable-sidebar {
-        position: fixed;
-        top: 70px; /* height of your banner */
-        bottom: 0;
-        left: 0;
-        width: 350px;
-        overflow-y: auto;
-        overflow-x: hidden;
-        z-index: 999;
+      .ltm-sidebar-settings {
+        border-top: 1px solid #d8e0dd;
+        margin-top: 10px;
+        padding-top: 10px;
       }
-
-      .main-panel {
-        margin-left: 330px; /* leave space for fixed sidebar */
-        padding: 20px;
+      .ltm-sidebar-settings pre {
+        white-space: pre-wrap;
       }
-
-    "))
+      @media (max-width: 900px) {
+        body {
+          padding-top: 74px;
+        }
+        .ltm-app-shell {
+          display: block;
+          padding: 12px;
+        }
+        .ltm-sidebar {
+          max-width: none;
+          max-height: none;
+          position: static;
+          width: 100%;
+        }
+        .main-panel {
+          margin-top: 16px;
+        }
+      }
+      @media (max-width: 520px) {
+        .ltm-control-grid {
+          grid-template-columns: 1fr;
+        }
+        .ltm-step-toggle,
+        .ltm-validator-toggle {
+          grid-template-columns: auto 1fr;
+        }
+        .ltm-status-badge {
+          grid-column: 2;
+          justify-self: start;
+        }
+        .ltm-step-summary,
+        .ltm-validator-summary {
+          grid-column: 1 / -1;
+        }
+      }
+      ")),
+      tags$script(shiny::HTML("
+      Shiny.addCustomMessageHandler('ltm-collapse', function(message) {
+        var panel = $('#' + message.id);
+        if (!panel.length) {
+          return;
+        }
+        if (message.action === 'show') {
+          panel.collapse('show');
+        }
+        if (message.action === 'hide') {
+          panel.collapse('hide');
+        }
+      });
+      "))
     ),
 
     shiny::div(
       class = "ltm-banner",
-      shiny::div(style = "display: flex; align-items: center;",
-          tags$img(src = ltm_app_asset("LTM_logo-v1.png"), height = "60px", style = "margin-right: 5px;"),
-          h2("Large Tree Monitoring")
-      )
-    ),
-
-
-    shiny::fluidRow(
       shiny::div(
-        class = "resizable-sidebar scrollable-sidebar",
-        shiny::sidebarPanel(
-          width = 12,  # use full width inside the resizable container
-
-          # Input point data ---------------------------------------------------#
-
-          shiny::strong("SELECT POINT FOR ANALYSIS"),
-          shiny::br(),
-          shiny::br(),
-
-          # Location or Tree ID from pre-existing list
-          shiny::uiOutput("coordinate_source_ui"),
-
-          shiny::selectInput("location_id", "Select Location ID",
-                      choices = tree_ids, selectize = TRUE, selected = "---"),
-          uiOutput("tree_list_warning"),
-
-          shiny::numericInput("latitude", "Latitude", value = 41.720898),
-          shiny::numericInput("longitude", "Longitude", value = -8.747039),
-
-          shiny::p("Select point from map:",
-                   shiny::actionButton("choose_coords", "",
-                                       icon = shiny::icon("map-location-dot"),
-                                       style = "margin-bottom: 8px;"),
-                   class = "control-label"),
-
-
-          shiny::uiOutput("coordinate_source_status"),
-
-          # Set dates
-          shiny::dateInput("start_date", tags$span(shiny::icon("calendar"),"Start Date"), value = "2015-01-01"),
-          shiny::dateInput("end_date",   tags$span(shiny::icon("calendar"),"End Date"), value = "2024-12-31"),
-
-          # Spectral index and pro level to use
-          shiny::selectInput("spi", tags$span(shiny::icon("buffer"),"Spectral Index"), choices = c("NDVI", "EVI", "EVI2", "NBR", "NDRE")),
-          shiny::selectInput("proc_level", "Processing Level", choices = c("L1C","L2A")),
-
-          # Get data time series button
-          shiny::actionButton("fetch_data", "Fetch Time Series Data"),
-
-          # Data regularization ------------------------------------------------ #
-          shiny::hr(),
-          shiny::strong("DATA PREPROCESSING"),
-          shiny::br(),
-          shiny::br(),
-
-          shiny::selectInput("regularize_method", tags$span(shiny::icon("chart-bar"),
-                                                            "Regularization Method"),
-                      choices = c("linear", "spline", "stine",
-                                  "mean", "kalman", "locf", "nocb")),
-          shiny::checkboxInput("use_cloud_mask", "Use Cloud Mask", value = TRUE),
-
-          shiny::actionButton("regularize", "Regularize/interpolate Time Series"),
-
-          # Moving window analysis
-          shiny::br(),
-          shiny::br(),
-
-          shiny::selectInput("quant", tags$span(shiny::icon("chart-line"),"Moving Window Quantile"),
-                      choices = c(0.95, 0.9, 0.75)),
-          shiny::numericInput("win_size", "Window Size (days)",
-                       value = 15, min = 5, max = 180),
-
-          shiny::actionButton("apply_mov_quantile", "Apply Moving Window"),
-
-          # Whittaker time series smoothing
-          shiny::br(),
-          shiny::br(),
-
-          shiny::numericInput("lambda", tags$span(shiny::icon("chart-line"),"Whittaker Smoothing Lambda"),
-                       value = 20000, min = 1),
-          shiny::numericInput("quantile_thresh", "Whittaker Quantile Threshold",
-                       value = 0.35, min = 0.01, max = 1),
-          shiny::checkboxInput("use_weights", "Use Weights in Whittaker Smoothing", value = TRUE),
-
-          shiny::actionButton("apply_whittaker", "Apply Whittaker Smoother"),
-
-
-          # Break Detection component ------------------------------------------#
-          # -- NEW: Break Detection UI inputs --
-          shiny::hr(),
-          shiny::strong("BREAKPOINT DETECTION ANALYSIS"),
-          shiny::br(),
-          shiny::br(),
-
-          shiny::checkboxGroupInput(
-            "ts_names", "Select Time Series Type(s)",
-            choices = c(
-
-              "Original time series (daily)" = "spi",
-              "Moving window series"         = "spi_mov_wind",
-              "Smoothed series"              = "spi_smooth",
-              "Moving window smoothed"       = "spi_mov_smooth"),
-            selected = c("spi")  # Default selection
-          ),
-
-          shiny::numericInput("s_window", "Window size (STL decomposition)",
-                       value = 30, min = 5, max = 365),
-
-          shiny::checkboxGroupInput(
-            inputId = "break_methods",
-            label   = "Break-Detection Methods",
-
-            choiceNames = list(
-              HTML("Change Point Model (cpm) <span title='Detects sequential changes using the cpm package'>[i]</span>"),
-              HTML("Energy Divisive (ed) <span title='ecp package e.divisive method: clustering-based method'>[i]</span>"),
-              HTML("BFAST <span title='Breaks in season-trend using bfast'>[i]</span>"),
-              HTML("Bayesian Change Points (mcp) <span title='Bayesian model-based detection using mcp'>[i]</span>"),
-              HTML("Structural Changes (stc) <span title='strucchange package for structural breaks'>[i]</span>"),
-              HTML("Wild Binary Segmentation (wbs) <span title='Fast segmentation of time series'>[i]</span>")
-            ),
-            choiceValues = c("cpm", "ed", "bfast", "mcp", "stc", "wbs"),
-
-            selected = NULL
-          ),
-
-          shiny::dateInput("break_thresh_date", "Break Threshold Date",
-                    value = "2016-01-01"),
-
-
-          ## Validator GUI inputs ----------------------------------------------#
-
-          shiny::div(style = "font-weight: 600; margin-top: 8px;", "Long-term validator"),
-          shiny::numericInput(
-            "lt_window",
-            "Long-term window size (observations per side, 0 uses full series)",
-            value = 0,
-            min = 0,
-            max = 365,
-            step = 1
-          ),
-          shiny::numericInput("lt_thresh_change", "Long-term % change threshold",
-                       value = -10, max = 0),
-
-          shiny::radioButtons(
-            inputId = "lt_fun",
-            label   = "Long-term aggregation function",
-            choices = ltm_validator_fun_choices(),
-            selected = "Median"),
-
-          shiny::div(style = "font-weight: 600; margin-top: 8px;", "Short-term validator"),
-          shiny::numericInput(
-            "st_window",
-            "Short-term window size (observations per side, 0 disables)",
-            value = 30,
-            min = 0,
-            max = 365,
-            step = 1
-          ),
-          shiny::numericInput(
-            "st_thresh_change",
-            "Short-term % change threshold",
-            value = -10,
-            max = 0
-          ),
-          shiny::radioButtons(
-            inputId = "st_fun",
-            label   = "Short-term aggregation function",
-            choices = ltm_validator_fun_choices(),
-            selected = "Median"
-          ),
-
-          shiny::div(style = "font-weight: 600; margin-top: 8px;", "Short-term trend validator"),
-          shiny::numericInput(
-            "trend_window",
-            "Trend window size (observations per side, 0 disables)",
-            value = 30,
-            min = 0,
-            max = 365,
-            step = 1
-          ),
-          shiny::numericInput(
-            "trend_post_pct_thresh",
-            "Trend post-break % threshold",
-            value = -10,
-            max = 0
-          ),
-          shiny::numericInput(
-            "trend_alpha",
-            "Trend alpha",
-            value = 0.05,
-            min = 0,
-            max = 1,
-            step = 0.01
-          ),
-          shiny::numericInput(
-            "trend_deficit_tol",
-            "Trend deficit tolerance",
-            value = 0.05,
-            min = 0,
-            max = 1,
-            step = 0.01
-          ),
-          shiny::numericInput(
-            "trend_min_prop_below",
-            "Trend minimum proportion below baseline",
-            value = 0.6,
-            min = 0,
-            max = 1,
-            step = 0.05
-          ),
-          shiny::numericInput(
-            "trend_avg_deficit_thresh",
-            "Trend average deficit threshold (%)",
-            value = -1.5,
-            max = 0,
-            step = 0.1
-          ),
-
-          shiny::actionButton("analyze_breaks", "Analyze Breaks"),
-
-          ## Parameter editing
-          shiny::hr(),
-          tags$span(shiny::icon("gear"), "Configure parameters"),
-          shiny::actionButton("edit_params", "Edit parameters"),
-          shiny::verbatimTextOutput("param_save_status")
-
-
-        )
+        style = "display: flex; align-items: center;",
+        tags$img(
+          src = ltm_app_asset("LTM_logo-v1.png"),
+          height = "60px",
+          style = "margin-right: 5px;"
+        ),
+        h2("Large Tree Monitoring")
       )
     ),
-
-    ## Right-side with analysis results
 
     shiny::div(
-      class = "main-panel",
+      class = "ltm-app-shell",
+      tags$aside(
+        class = "ltm-sidebar",
+        shiny::div(
+          class = "ltm-sidebar-header",
+          tags$h3("Workflow"),
+          tags$p("Follow the steps from tree selection to validated breakpoints.")
+        ),
+
+        shiny::div(
+          class = "ltm-workflow-accordion",
+          ltm_workflow_step_ui(
+            step_id = "target",
+            step_number = 1,
+            title = "Target point",
+            status_output_id = "target_step_status",
+            summary_output_id = "target_step_summary",
+            open = TRUE,
+            ltm_help_text("Choose a tree point before requesting Sentinel-2 data."),
+            shiny::uiOutput("coordinate_source_ui"),
+            ltm_control_grid(
+              shiny::selectInput(
+                "location_id",
+                "Location ID",
+                choices = tree_ids,
+                selectize = TRUE,
+                selected = "---"
+              ),
+              shiny::br(),
+              shiny::numericInput("latitude", "Latitude", value = 41.720898),
+              shiny::numericInput("longitude", "Longitude", value = -8.747039)
+            ),
+            shiny::uiOutput("tree_list_warning"),
+            shiny::p(
+              tags$span("Select point from map"),
+              shiny::actionButton(
+                "choose_coords",
+                "",
+                icon = shiny::icon("map-location-dot")
+              ),
+              class = "ltm-map-picker control-label"
+            ),
+            shiny::uiOutput("coordinate_source_status"),
+            shiny::actionButton(
+              "continue_to_fetch",
+              "Continue to data settings",
+              class = "ltm-primary-action"
+            )
+          ),
+
+          ltm_workflow_step_ui(
+            step_id = "fetch",
+            step_number = 2,
+            title = "Fetch data",
+            status_output_id = "fetch_step_status",
+            summary_output_id = "fetch_step_summary",
+            shiny::uiOutput("fetch_gate_notice"),
+            ltm_control_grid(
+              shiny::dateInput(
+                "start_date",
+                tags$span(shiny::icon("calendar"), "Start Date"),
+                value = "2015-01-01"
+              ),
+              shiny::dateInput(
+                "end_date",
+                tags$span(shiny::icon("calendar"), "End Date"),
+                value = "2024-12-31"
+              ),
+              shiny::selectInput(
+                "spi",
+                tags$span(shiny::icon("buffer"), "Spectral Index"),
+                choices = c("NDVI", "EVI", "EVI2", "NBR", "NDRE")
+              ),
+              shiny::selectInput(
+                "proc_level",
+                "Processing Level",
+                choices = c("L1C", "L2A")
+              )
+            ),
+            shiny::actionButton(
+              "fetch_data",
+              "Fetch Time Series Data",
+              class = "ltm-primary-action"
+            ),
+            shiny::uiOutput("fetched_data_summary")
+          ),
+
+          ltm_workflow_step_ui(
+            step_id = "preprocess",
+            step_number = 3,
+            title = "Preprocess",
+            status_output_id = "preprocess_step_status",
+            summary_output_id = "preprocess_step_summary",
+            shiny::uiOutput("preprocess_gate_notice"),
+            ltm_help_text("Run the full preprocessing chain before breakpoint analysis."),
+            ltm_control_grid(
+              shiny::selectInput(
+                "regularize_method",
+                tags$span(shiny::icon("chart-bar"), "Regularization"),
+                choices = c("linear", "spline", "stine", "mean", "kalman", "locf", "nocb")
+              ),
+              shiny::checkboxInput("use_cloud_mask", "Use cloud mask", value = TRUE),
+              shiny::selectInput(
+                "quant",
+                tags$span(shiny::icon("chart-line"), "Window quantile"),
+                choices = c(0.95, 0.9, 0.75)
+              ),
+              shiny::numericInput(
+                "win_size",
+                "Window size (days)",
+                value = 15,
+                min = 5,
+                max = 180
+              ),
+              shiny::numericInput(
+                "lambda",
+                tags$span(shiny::icon("chart-line"), "Whittaker lambda"),
+                value = 20000,
+                min = 1
+              ),
+              shiny::numericInput(
+                "quantile_thresh",
+                "Whittaker quantile threshold",
+                value = 0.35,
+                min = 0.01,
+                max = 1
+              ),
+              shiny::checkboxInput("use_weights", "Use Whittaker weights", value = TRUE)
+            ),
+            shiny::actionButton(
+              "run_preprocessing",
+              "Run preprocessing",
+              class = "ltm-primary-action"
+            ),
+            tags$details(
+              class = "ltm-details",
+              tags$summary("Run preprocessing steps individually"),
+              shiny::div(
+                class = "ltm-inline-actions",
+                shiny::actionButton("regularize", "Regularize/interpolate Time Series"),
+                shiny::actionButton("apply_mov_quantile", "Apply Moving Window"),
+                shiny::actionButton("apply_whittaker", "Apply Whittaker Smoother")
+              )
+            )
+          ),
+
+          ltm_workflow_step_ui(
+            step_id = "breaks",
+            step_number = 4,
+            title = "Breakpoint analysis",
+            status_output_id = "breaks_step_status",
+            summary_output_id = "breaks_step_summary",
+            shiny::uiOutput("breaks_gate_notice"),
+            ltm_help_text("Select at least one method. Bayesian Change Points can take much longer than the other methods."),
+            shiny::checkboxGroupInput(
+              "ts_names",
+              "Time series type(s)",
+              choices = c(
+                "Original time series (daily)" = "spi",
+                "Moving window series" = "spi_mov_wind",
+                "Smoothed series" = "spi_smooth",
+                "Moving window smoothed" = "spi_mov_smooth"
+              ),
+              selected = c("spi")
+            ),
+            ltm_control_grid(
+              shiny::numericInput(
+                "s_window",
+                "STL window size",
+                value = 30,
+                min = 5,
+                max = 365
+              ),
+              shiny::dateInput(
+                "break_thresh_date",
+                "Break threshold date",
+                value = "2016-01-01"
+              )
+            ),
+            shiny::checkboxGroupInput(
+              inputId = "break_methods",
+              label = "Break-detection methods",
+              choiceNames = list(
+                HTML("Change Point Model (cpm) <span title='Detects sequential changes using the cpm package'>[i]</span>"),
+                HTML("Energy Divisive (ed) <span title='ecp package e.divisive method: clustering-based method'>[i]</span>"),
+                HTML("BFAST <span title='Breaks in season-trend using bfast'>[i]</span>"),
+                HTML("Bayesian Change Points (mcp) <span title='Bayesian model-based detection using mcp'>[i]</span>"),
+                HTML("Structural Changes (stc) <span title='strucchange package for structural breaks'>[i]</span>"),
+                HTML("Wild Binary Segmentation (wbs) <span title='Fast segmentation of time series'>[i]</span>")
+              ),
+              choiceValues = c("cpm", "ed", "bfast", "mcp", "stc", "wbs"),
+              selected = NULL
+            ),
+            tags$div(
+              id = "workflow_validator_settings",
+              class = "ltm-validator-accordion panel panel-default",
+              tags$div(
+                class = "ltm-validator-heading panel-heading",
+                tags$a(
+                  class = "ltm-validator-toggle",
+                  href = "#workflow_validator_settings_body",
+                  `data-toggle` = "collapse",
+                  `aria-expanded` = "false",
+                  tags$span(class = "ltm-step-number", "V"),
+                  tags$span(class = "ltm-validator-title", "Validation settings"),
+                  tags$span(
+                    class = "ltm-status-badge ltm-status-ready",
+                    "Defaults"
+                  ),
+                  tags$span(
+                    class = "ltm-validator-summary",
+                    "Long-term, short-term, and trend validators"
+                  )
+                )
+              ),
+              tags$div(
+                id = "workflow_validator_settings_body",
+                class = "panel-collapse collapse",
+                tags$div(
+                  class = "ltm-validator-body panel-body",
+                  ltm_validator_controls_ui()
+                )
+              )
+            ),
+            shiny::actionButton(
+              "analyze_breaks",
+              "Analyze Breaks",
+              class = "ltm-primary-action"
+            )
+          )
+        ),
+
+        shiny::div(
+          class = "ltm-sidebar-settings",
+          tags$span(shiny::icon("gear"), " Configure parameters"),
+          shiny::actionButton("edit_params", "Edit parameters"),
+          shiny::verbatimTextOutput("param_save_status")
+        )
+      ),
+
+      ## Right-side with analysis results
+
+      shiny::div(
+        class = "main-panel",
 
       shiny::uiOutput("loading"),
 
@@ -992,7 +1483,8 @@ ltm_app <- function(config_path = NULL) {
         )
       ),
 
-      shiny::uiOutput("break_summary_ui")
+        shiny::uiOutput("break_summary_ui")
+      )
     )
   )
 
@@ -1003,12 +1495,47 @@ ltm_app <- function(config_path = NULL) {
     params <- shiny::reactiveVal(startup$params)
     tree_state <- shiny::reactiveVal(startup$tree_state)
     spidf_data <- reactiveVal(NULL)
+    fetched_request_key <- reactiveVal(NULL)
+    breakResults <- reactiveVal(NULL)
 
     # Store the actual location used by the last fetch, independent of form edits.
     selectedCoord <- reactiveVal(NULL)
     active_coord_source <- reactiveVal(ltm_coord_source_manual())
     coord_inputs_updating <- reactiveVal(FALSE)
     coord_update_token <- reactiveVal(0L)
+
+    set_collapse_panel <- function(panel_id, action = c("show", "hide")) {
+      action <- match.arg(action)
+      session$sendCustomMessage(
+        "ltm-collapse",
+        list(id = panel_id, action = action)
+      )
+    }
+
+    show_workflow_step <- function(step_id) {
+      set_collapse_panel(paste0("workflow_step_", step_id, "_body"), "show")
+    }
+
+    hide_workflow_step <- function(step_id) {
+      set_collapse_panel(paste0("workflow_step_", step_id, "_body"), "hide")
+    }
+
+    set_inputs_enabled <- function(input_ids, enabled) {
+      for (input_id in input_ids) {
+        if (isTRUE(enabled)) {
+          shinyjs::enable(input_id)
+        } else {
+          shinyjs::disable(input_id)
+        }
+      }
+    }
+
+    gate_notice <- function(text, ready = FALSE) {
+      div(
+        class = paste("ltm-gate-notice", if (isTRUE(ready)) "ltm-ready-note" else ""),
+        text
+      )
+    }
 
     set_coordinate_source <- function(source) {
       if (!source %in% c(ltm_coord_source_manual(), ltm_coord_source_tree_list())) {
@@ -1073,6 +1600,79 @@ ltm_app <- function(config_path = NULL) {
       )
     }
 
+    target_request <- shiny::reactive({
+      tryCatch(
+        ltm_resolve_coordinate_request(
+          coord_source = active_coord_source(),
+          location_id = input$location_id,
+          latitude = input$latitude,
+          longitude = input$longitude,
+          tree_state = tree_state()
+        ),
+        error = function(error) {
+          error
+        }
+      )
+    })
+
+    current_request_key <- shiny::reactive({
+      ltm_current_request_key(
+        coord_request = target_request(),
+        start_date = input$start_date,
+        end_date = input$end_date,
+        spi = input$spi,
+        proc_level = input$proc_level
+      )
+    })
+
+    workflow_state <- shiny::reactive({
+      ltm_workflow_state(
+        target_request = target_request(),
+        current_request_key = current_request_key(),
+        spidf = spidf_data(),
+        fetched_request_key = fetched_request_key(),
+        break_results = breakResults()
+      )
+    })
+
+    shiny::observe({
+      state <- workflow_state()
+
+      set_inputs_enabled(
+        c("start_date", "end_date", "spi", "proc_level", "fetch_data"),
+        state$target_ready
+      )
+      set_inputs_enabled(
+        c(
+          "regularize_method", "use_cloud_mask", "quant", "win_size",
+          "lambda", "quantile_thresh", "use_weights", "run_preprocessing",
+          "regularize", "apply_mov_quantile", "apply_whittaker"
+        ),
+        state$data_ready
+      )
+      set_inputs_enabled(
+        c(
+          "ts_names", "s_window", "break_thresh_date", "break_methods",
+          "lt_window", "lt_thresh_change", "lt_fun", "st_window",
+          "st_thresh_change", "st_fun", "trend_window",
+          "trend_post_pct_thresh", "trend_alpha", "trend_deficit_tol",
+          "trend_min_prop_below", "trend_avg_deficit_thresh",
+          "analyze_breaks"
+        ),
+        state$preprocess_ready
+      )
+    })
+
+    observeEvent(current_request_key(), {
+      if (
+        !is.null(fetched_request_key()) &&
+          !identical(current_request_key(), fetched_request_key())
+      ) {
+        breakResults(NULL)
+        output$break_analysis_status <- renderText("")
+      }
+    }, ignoreInit = TRUE)
+
     output$coordinate_source_ui <- renderUI({
       choices <- ltm_coord_source_choices(
         ltm_tree_list_available(tree_state())
@@ -1092,18 +1692,7 @@ ltm_app <- function(config_path = NULL) {
     })
 
     output$coordinate_source_status <- renderUI({
-      request <- tryCatch(
-        ltm_resolve_coordinate_request(
-          coord_source = active_coord_source(),
-          location_id = input$location_id,
-          latitude = input$latitude,
-          longitude = input$longitude,
-          tree_state = tree_state()
-        ),
-        error = function(error) {
-          error
-        }
-      )
+      request <- target_request()
 
       if (inherits(request, "error")) {
         return(coordinate_status_div(conditionMessage(request), warning = TRUE))
@@ -1117,6 +1706,199 @@ ltm_app <- function(config_path = NULL) {
           request$lon
         )
       )
+    })
+
+    output$target_step_status <- renderUI({
+      request <- target_request()
+      if (inherits(request, "error")) {
+        return(ltm_workflow_status_badge("Error"))
+      }
+
+      ltm_workflow_status_badge("Ready")
+    })
+
+    output$target_step_summary <- renderUI({
+      request <- target_request()
+      if (inherits(request, "error")) {
+        return(conditionMessage(request))
+      }
+
+      sprintf(
+        "%s: %.6f, %.6f",
+        request$status_label,
+        request$lat,
+        request$lon
+      )
+    })
+
+    output$fetch_step_status <- renderUI({
+      state <- workflow_state()
+
+      if (!state$target_ready) {
+        return(ltm_workflow_status_badge("Error"))
+      }
+      if (state$data_ready) {
+        return(ltm_workflow_status_badge("Complete"))
+      }
+      if (state$data_stale) {
+        return(ltm_workflow_status_badge("Out of date"))
+      }
+
+      ltm_workflow_status_badge("Needs data")
+    })
+
+    output$fetch_step_summary <- renderUI({
+      state <- workflow_state()
+
+      if (!state$target_ready) {
+        return("Fix the target point first")
+      }
+      if (state$data_ready) {
+        return(sprintf(
+          "%s %s, %s to %s",
+          input$spi,
+          input$proc_level,
+          input$start_date,
+          input$end_date
+        ))
+      }
+      if (state$data_stale) {
+        return("Fetch again for the current settings")
+      }
+
+      "Set dates, spectral index, and processing level"
+    })
+
+    output$preprocess_step_status <- renderUI({
+      state <- workflow_state()
+
+      if (state$data_stale) {
+        return(ltm_workflow_status_badge("Out of date"))
+      }
+      if (state$preprocess_ready) {
+        return(ltm_workflow_status_badge("Complete"))
+      }
+      if (!state$data_ready) {
+        return(ltm_workflow_status_badge("Needs data"))
+      }
+
+      ltm_workflow_status_badge("Needs preprocessing")
+    })
+
+    output$preprocess_step_summary <- renderUI({
+      state <- workflow_state()
+
+      if (state$data_stale) {
+        return("Fetch data again before preprocessing")
+      }
+      if (!state$data_ready) {
+        return("Fetch time series data first")
+      }
+      if (state$preprocess_ready) {
+        return("Regularized, windowed, and smoothed")
+      }
+      if (state$regularized) {
+        return("Regularized; complete moving window and smoothing")
+      }
+
+      "Ready for regularization, windowing, and smoothing"
+    })
+
+    output$breaks_step_status <- renderUI({
+      state <- workflow_state()
+
+      if (state$data_stale) {
+        return(ltm_workflow_status_badge("Out of date"))
+      }
+      if (state$breaks_ready) {
+        return(ltm_workflow_status_badge("Complete"))
+      }
+      if (!state$preprocess_ready) {
+        return(ltm_workflow_status_badge("Needs preprocessing"))
+      }
+
+      ltm_workflow_status_badge("Ready")
+    })
+
+    output$breaks_step_summary <- renderUI({
+      state <- workflow_state()
+
+      if (state$data_stale) {
+        return("Fetch and preprocess the current request")
+      }
+      if (!state$preprocess_ready) {
+        return("Complete preprocessing first")
+      }
+      if (state$breaks_ready) {
+        return("Break analysis complete")
+      }
+
+      "Choose series and detection methods"
+    })
+
+    output$fetch_gate_notice <- renderUI({
+      state <- workflow_state()
+
+      if (!state$target_ready) {
+        return(gate_notice("Fix the target point before fetching data."))
+      }
+      if (state$data_stale) {
+        return(gate_notice("Target or data settings changed. Fetch data again before continuing."))
+      }
+      if (state$data_ready) {
+        return(gate_notice("Data is ready for the current target and settings.", ready = TRUE))
+      }
+
+      NULL
+    })
+
+    output$fetched_data_summary <- renderUI({
+      state <- workflow_state()
+
+      if (!state$has_data) {
+        return(NULL)
+      }
+
+      if (state$data_stale) {
+        return(gate_notice("The displayed time series belongs to an earlier request. Fetch data again to update it."))
+      }
+
+      gate_notice(
+        sprintf("Fetched time series is ready (%s rows).", nrow(spidf_data())),
+        ready = TRUE
+      )
+    })
+
+    output$preprocess_gate_notice <- renderUI({
+      state <- workflow_state()
+
+      if (state$data_stale) {
+        return(gate_notice("Fetch data again for the current target and data settings before preprocessing."))
+      }
+      if (!state$data_ready) {
+        return(gate_notice("Fetch time series data before preprocessing."))
+      }
+      if (state$preprocess_ready) {
+        return(gate_notice("Preprocessing is complete for the current data.", ready = TRUE))
+      }
+
+      NULL
+    })
+
+    output$breaks_gate_notice <- renderUI({
+      state <- workflow_state()
+
+      if (state$data_stale) {
+        return(gate_notice("Fetch and preprocess the current request before breakpoint analysis."))
+      }
+      if (!state$preprocess_ready) {
+        return(gate_notice("Run preprocessing before breakpoint analysis."))
+      }
+      if (state$breaks_ready) {
+        return(gate_notice("Break analysis is complete. Results are shown in the main panel.", ready = TRUE))
+      }
+
+      NULL
     })
 
     output$tree_list_warning <- renderUI({
@@ -1233,6 +2015,23 @@ ltm_app <- function(config_path = NULL) {
       clear_coordinate_highlight()
     }, ignoreInit = TRUE)
 
+    observeEvent(input$continue_to_fetch, {
+      request <- target_request()
+
+      if (inherits(request, "error")) {
+        shinyalert::shinyalert(
+          title = "Coordinate source error",
+          text = conditionMessage(request),
+          type = "error"
+        )
+        show_workflow_step("target")
+        return(NULL)
+      }
+
+      hide_workflow_step("target")
+      show_workflow_step("fetch")
+    })
+
     ## ------------------------------------------------------------------------ ##
     #  ---- Coordinate picker with reactive val to update main coordinates ----
     ## ------------------------------------------------------------------------ ##
@@ -1340,6 +2139,7 @@ ltm_app <- function(config_path = NULL) {
               type = "error"
             )
             output$loading <- renderUI({ NULL })
+            show_workflow_step("fetch")
             date_error <- TRUE
           }
           if ((input$proc_level %in% c("L2","L2A")) && (input$start_date < as.Date("2017-01-01"))) {
@@ -1349,6 +2149,7 @@ ltm_app <- function(config_path = NULL) {
               type = "error"
             )
             output$loading <- renderUI({ NULL })
+            show_workflow_step("fetch")
             date_error <- TRUE
           }
 
@@ -1359,18 +2160,7 @@ ltm_app <- function(config_path = NULL) {
             location_ready <- TRUE
             cache_hit <- FALSE
 
-            coord_request <- tryCatch(
-              ltm_resolve_coordinate_request(
-                coord_source = active_coord_source(),
-                location_id = input$location_id,
-                latitude = input$latitude,
-                longitude = input$longitude,
-                tree_state = tree_state()
-              ),
-              error = function(error) {
-                error
-              }
-            )
+            coord_request <- target_request()
 
             if (inherits(coord_request, "error")) {
               shinyalert::shinyalert(
@@ -1379,6 +2169,7 @@ ltm_app <- function(config_path = NULL) {
                 type = "error"
               )
               output$loading <- renderUI({ NULL })
+              show_workflow_step("target")
               location_ready <- FALSE
             }
 
@@ -1386,6 +2177,24 @@ ltm_app <- function(config_path = NULL) {
               lat <- coord_request$lat
               lon <- coord_request$lon
               selected_tree_id <- coord_request$tree_id
+              request_key <- ltm_current_request_key(
+                coord_request = coord_request,
+                start_date = input$start_date,
+                end_date = input$end_date,
+                spi = input$spi,
+                proc_level = input$proc_level
+              )
+
+              if (is.null(request_key)) {
+                shinyalert::shinyalert(
+                  title = "Data request error",
+                  text = "Complete the target point and data settings before fetching data.",
+                  type = "error"
+                )
+                output$loading <- renderUI({ NULL })
+                show_workflow_step("fetch")
+                location_ready <- FALSE
+              }
             }
 
             if (isTRUE(location_ready)) {
@@ -1473,8 +2282,13 @@ ltm_app <- function(config_path = NULL) {
 
                   output$status <- renderText(paste("[OK] Data loaded from cache:", cached_file))
                   spidf_data(cached_data)
+                  fetched_request_key(request_key)
+                  breakResults(NULL)
+                  output$break_analysis_status <- renderText("")
                   selectedCoord(coord_request)
                   output$loading <- renderUI({NULL})
+                  hide_workflow_step("fetch")
+                  show_workflow_step("preprocess")
                   cache_hit <- TRUE
                 }
               }
@@ -1551,9 +2365,14 @@ ltm_app <- function(config_path = NULL) {
                     }
 
                     spidf_data(df)
+                    fetched_request_key(request_key)
+                    breakResults(NULL)
+                    output$break_analysis_status <- renderText("")
                     selectedCoord(coord_request)
 
                     output$loading <- renderUI({NULL})
+                    hide_workflow_step("fetch")
+                    show_workflow_step("preprocess")
                   }, error = function(error) {
                     shinyalert::shinyalert(
                       title = "Error fetching time series",
@@ -1562,6 +2381,7 @@ ltm_app <- function(config_path = NULL) {
                     )
                     output$status <- renderText(paste("[ERROR]", error$message))
                     output$loading <- renderUI({NULL})
+                    show_workflow_step("fetch")
                     NULL
                   })
                 })
@@ -1576,14 +2396,89 @@ ltm_app <- function(config_path = NULL) {
           )
           output$status <- renderText(paste("[ERROR]", error$message))
           output$loading <- renderUI({ NULL })
+          show_workflow_step("fetch")
           NULL
         })
+      })
+    })
+
+    require_current_data <- function(action_label) {
+      state <- workflow_state()
+
+      if (state$data_stale) {
+        shinyalert::shinyalert(
+          title = "Action Required",
+          text = paste("Fetch data again for the current target and settings before", action_label, "."),
+          type = "error"
+        )
+        show_workflow_step("fetch")
+        return(FALSE)
+      }
+
+      if (!state$data_ready) {
+        shinyalert::shinyalert(
+          title = "Action Required",
+          text = paste("Fetch time series data before", action_label, "."),
+          type = "error"
+        )
+        show_workflow_step("fetch")
+        return(FALSE)
+      }
+
+      TRUE
+    }
+
+    observeEvent(input$run_preprocessing, {
+      req(spidf_data())
+
+      if (!isTRUE(require_current_data("preprocessing"))) {
+        return(NULL)
+      }
+
+      tryCatch({
+        preprocessed <- ltm_regularize_spidf(
+          spidf_data(),
+          method = input$regularize_method,
+          use_cloud_mask = input$use_cloud_mask
+        )
+        preprocessed <- ltm_apply_moving_quantile(
+          preprocessed,
+          quant = as.numeric(input$quant),
+          win_size = input$win_size
+        )
+        preprocessed <- ltm_apply_whitaker(
+          preprocessed,
+          lambda = input$lambda,
+          quantile_thresh = input$quantile_thresh,
+          use_weights = input$use_weights
+        )
+
+        spidf_data(preprocessed)
+        breakResults(NULL)
+        output$break_analysis_status <- renderText("")
+        output$status <- renderText("[OK] Preprocessing complete.")
+        hide_workflow_step("preprocess")
+        show_workflow_step("breaks")
+      }, error = function(error) {
+        shinyalert::shinyalert(
+          title = "Error while preprocessing",
+          text = error$message,
+          type = "error"
+        )
+        output$status <- renderText(paste("[ERROR]", error$message))
+        show_workflow_step("preprocess")
+        NULL
       })
     })
 
     # ---- Regularize logic ----
     observeEvent(input$regularize, {
       req(spidf_data())
+
+      if (!isTRUE(require_current_data("regularizing the time series"))) {
+        return(NULL)
+      }
+
       spidf_data(
         ltm_regularize_spidf(
           spidf_data(),
@@ -1591,13 +2486,20 @@ ltm_app <- function(config_path = NULL) {
           use_cloud_mask = input$use_cloud_mask
         )
       )
+      breakResults(NULL)
+      output$break_analysis_status <- renderText("")
       output$status <- renderText("[OK] Time series regularized.")
+      show_workflow_step("preprocess")
     })
 
     # ---- Moving window quantile ----
     observeEvent(input$apply_mov_quantile, {
 
       req(spidf_data())
+
+      if (!isTRUE(require_current_data("applying the moving window analysis"))) {
+        return(NULL)
+      }
 
       if (!isTRUE(is_regularized(spidf_data()))) {
         shinyalert::shinyalert(
@@ -1606,6 +2508,7 @@ ltm_app <- function(config_path = NULL) {
         applying the moving window analysis.",
           type  = "error"
         )
+        show_workflow_step("preprocess")
         return(NULL)
       }
 
@@ -1618,12 +2521,20 @@ ltm_app <- function(config_path = NULL) {
         )
       )
 
+      breakResults(NULL)
+      output$break_analysis_status <- renderText("")
       output$status <- renderText("[OK] Moving window quantile applied.")
+      show_workflow_step("preprocess")
     })
 
     # ---- Whittaker smoother ----
     observeEvent(input$apply_whittaker, {
       req(spidf_data())
+
+      if (!isTRUE(require_current_data("applying the Whittaker smoother"))) {
+        return(NULL)
+      }
+
       spidf_data(
         ltm_apply_whitaker(
           spidf_data(),
@@ -1632,7 +2543,16 @@ ltm_app <- function(config_path = NULL) {
           use_weights     = input$use_weights
         )
       )
+      breakResults(NULL)
+      output$break_analysis_status <- renderText("")
       output$status <- renderText("[OK] Whittaker smoother applied.")
+
+      if (isTRUE(workflow_state()$preprocess_ready)) {
+        hide_workflow_step("preprocess")
+        show_workflow_step("breaks")
+      } else {
+        show_workflow_step("preprocess")
+      }
     })
 
     # ---- Main plot ----
@@ -1707,10 +2627,6 @@ ltm_app <- function(config_path = NULL) {
           options = layersControlOptions(collapsed = FALSE)
         )
     })
-
-    # A reactive to hold the aggregated results (ts_breaks object + data frame)
-    breakResults <- reactiveVal(NULL)
-
 
     #################################################
 
@@ -1791,6 +2707,16 @@ ltm_app <- function(config_path = NULL) {
       message("[DEBUG] ts_names: ", paste(input$ts_names, collapse=", "))
 
       req(spidf_data())
+      if (!isTRUE(workflow_state()$preprocess_ready)) {
+        shinyalert::shinyalert(
+          title = "Action Required",
+          text = "Run preprocessing for the current data before breakpoint analysis.",
+          type = "error"
+        )
+        show_workflow_step("preprocess")
+        return(NULL)
+      }
+
       message("[DEBUG] spidf_data rows: ", nrow(spidf_data()))  # or however your spidf is structured
 
       if (length(input$break_methods) == 0 || length(input$ts_names) == 0) {
@@ -1803,6 +2729,7 @@ ltm_app <- function(config_path = NULL) {
           type  = "error"
         )
 
+        show_workflow_step("breaks")
         return(NULL)
       }
 
@@ -1816,6 +2743,7 @@ ltm_app <- function(config_path = NULL) {
           type  = "error"
         )
 
+        show_workflow_step("preprocess")
         return(NULL)
 
       }
@@ -1843,6 +2771,7 @@ ltm_app <- function(config_path = NULL) {
           type  = "error"
         )
 
+        show_workflow_step("breaks")
         return(NULL)
       }
 
@@ -1867,6 +2796,8 @@ ltm_app <- function(config_path = NULL) {
             text = conditionMessage(error),
             type = "error"
           )
+          show_workflow_step("breaks")
+          set_collapse_panel("workflow_validator_settings_body", "show")
           NULL
         }
       )
@@ -2023,6 +2954,7 @@ ltm_app <- function(config_path = NULL) {
 
         # Make an output appear once finishing the analysis
         output$break_analysis_status <- renderText("[OK] Break analysis complete.")
+        show_workflow_step("breaks")
       })
 
     })

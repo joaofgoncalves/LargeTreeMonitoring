@@ -19,11 +19,112 @@ test_that("ltm_app returns a shiny app object and registers assets", {
   )
 })
 
+ltm_app_ui_source <- function() {
+  paste(
+    c(
+      deparse(body(LargeTreeMonitoring::ltm_app), width.cutoff = 500L),
+      deparse(body(LargeTreeMonitoring:::ltm_workflow_step_ui), width.cutoff = 500L),
+      deparse(body(LargeTreeMonitoring:::ltm_validator_controls_ui), width.cutoff = 500L)
+    ),
+    collapse = "\n"
+  )
+}
+
 test_that("Percentile90 supports na.rm and returns a scalar numeric", {
   expect_equal(
     LargeTreeMonitoring:::Percentile90(c(1, 2, 3, 4, 5, NA), na.rm = TRUE),
     4.6
   )
+})
+
+test_that("workflow request keys and state classify sidebar progress", {
+  target_request <- list(
+    lat = 41.27998123,
+    lon = -8.29060123,
+    tree_id = "GV0001"
+  )
+  request_key <- LargeTreeMonitoring:::ltm_current_request_key(
+    coord_request = target_request,
+    start_date = as.Date("2015-01-01"),
+    end_date = as.Date("2024-12-31"),
+    spi = "NDVI",
+    proc_level = "L1C"
+  )
+
+  expect_identical(request_key$lat, 41.279981)
+  expect_identical(request_key$lon, -8.290601)
+  expect_identical(request_key$tree_id, "GV0001")
+
+  spidf <- data.frame(
+    ti = as.Date("2020-01-01") + 0:2,
+    spi = c(0.8, 0.7, 0.6)
+  )
+  class(spidf) <- c("spidf", class(spidf))
+
+  state <- LargeTreeMonitoring:::ltm_workflow_state(
+    target_request = target_request,
+    current_request_key = request_key
+  )
+  expect_true(state$target_ready)
+  expect_false(state$data_ready)
+  expect_false(state$preprocess_ready)
+
+  state <- LargeTreeMonitoring:::ltm_workflow_state(
+    target_request = target_request,
+    current_request_key = request_key,
+    spidf = spidf,
+    fetched_request_key = request_key
+  )
+  expect_true(state$data_ready)
+  expect_false(state$preprocess_ready)
+
+  regularized <- spidf
+  attr(regularized, "regularized") <- TRUE
+  state <- LargeTreeMonitoring:::ltm_workflow_state(
+    target_request = target_request,
+    current_request_key = request_key,
+    spidf = regularized,
+    fetched_request_key = request_key
+  )
+  expect_true(state$data_ready)
+  expect_true(state$regularized)
+  expect_false(state$preprocess_ready)
+
+  preprocessed <- regularized
+  preprocessed$spi_mov_wind <- c(0.8, 0.75, 0.7)
+  preprocessed$spi_smooth <- c(0.79, 0.72, 0.64)
+  preprocessed$spi_mov_smooth <- c(0.79, 0.74, 0.69)
+  state <- LargeTreeMonitoring:::ltm_workflow_state(
+    target_request = target_request,
+    current_request_key = request_key,
+    spidf = preprocessed,
+    fetched_request_key = request_key
+  )
+  expect_true(state$preprocess_ready)
+  expect_false(state$breaks_ready)
+
+  state <- LargeTreeMonitoring:::ltm_workflow_state(
+    target_request = target_request,
+    current_request_key = request_key,
+    spidf = preprocessed,
+    fetched_request_key = request_key,
+    break_results = list(df_breaks = data.frame())
+  )
+  expect_true(state$breaks_ready)
+
+  stale_key <- request_key
+  stale_key$end_date <- "2025-12-31"
+  state <- LargeTreeMonitoring:::ltm_workflow_state(
+    target_request = target_request,
+    current_request_key = stale_key,
+    spidf = preprocessed,
+    fetched_request_key = request_key,
+    break_results = list(df_breaks = data.frame())
+  )
+  expect_true(state$data_stale)
+  expect_false(state$data_ready)
+  expect_false(state$preprocess_ready)
+  expect_false(state$breaks_ready)
 })
 
 test_that("validator settings helper maps Shiny selections to detector arguments", {
@@ -313,10 +414,7 @@ test_that("coordinate request helper resolves explicit source", {
 })
 
 test_that("ltm_app UI exposes the new validator controls", {
-  app_body <- paste(
-    deparse(body(LargeTreeMonitoring::ltm_app), width.cutoff = 500L),
-    collapse = "\n"
-  )
+  app_body <- ltm_app_ui_source()
 
   expect_match(app_body, '"st_window"', fixed = TRUE)
   expect_match(app_body, '"lt_window"', fixed = TRUE)
@@ -332,16 +430,27 @@ test_that("ltm_app UI exposes the new validator controls", {
 })
 
 test_that("ltm_app UI exposes coordinate source controls", {
-  app_body <- paste(
-    deparse(body(LargeTreeMonitoring::ltm_app), width.cutoff = 500L),
-    collapse = "\n"
-  )
+  app_body <- ltm_app_ui_source()
 
   expect_match(app_body, '"coordinate_source_ui"', fixed = TRUE)
   expect_match(app_body, '"coordinate_source_status"', fixed = TRUE)
   expect_match(app_body, '"coord_source"', fixed = TRUE)
   expect_match(app_body, "ltm-coordinate-highlight", fixed = TRUE)
   expect_match(app_body, "ltm_resolve_coordinate_request", fixed = TRUE)
+})
+
+test_that("ltm_app UI exposes the workflow sidebar sections", {
+  app_body <- ltm_app_ui_source()
+
+  expect_match(app_body, '"target"', fixed = TRUE)
+  expect_match(app_body, '"fetch"', fixed = TRUE)
+  expect_match(app_body, '"preprocess"', fixed = TRUE)
+  expect_match(app_body, '"breaks"', fixed = TRUE)
+  expect_match(app_body, '"workflow_validator_settings"', fixed = TRUE)
+  expect_match(app_body, '"continue_to_fetch"', fixed = TRUE)
+  expect_match(app_body, '"run_preprocessing"', fixed = TRUE)
+  expect_match(app_body, '"target_step_status"', fixed = TRUE)
+  expect_match(app_body, '"breaks_step_summary"', fixed = TRUE)
 })
 
 test_that("invalid tree list path falls back without crashing app creation", {
