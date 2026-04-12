@@ -193,9 +193,9 @@ print.ts_breaks_run <- function(x, digits = 4, ...) {
   cat("-------------------------------------------\n")
   cat(sprintf("%-26s : %s\n", "Method",      if (!is.null(x$method)) x$method else "-"))
   cat(sprintf("%-26s : %s\n", "Data type",   if (!is.null(x$data_type)) x$data_type else "-"))
-  cat(sprintf("%-26s : %s\n", "Season requested", if (!is.null(x$season_adj)) yn(x$season_adj) else "NA"))
+  cat(sprintf("%-26s : %s\n", "Deseasonalisation requested?", if (!is.null(x$season_adj)) yn(x$season_adj) else "NA"))
   if (!is.null(x$season_used)) {
-    cat(sprintf("%-26s : %s\n", "Season used", yn(x$season_used)))
+    cat(sprintf("%-26s : %s\n", "Deseasonalisation used?", yn(x$season_used)))
   }
   cat(sprintf("%-26s : %s\n", "Breaks detected", yn(x$has_breaks)))
   cat(sprintf("%-26s : %s\n", "Number of breaks",
