@@ -143,5 +143,5 @@ The modified object `x`.
 ## See also
 
 Other metadata helpers:
-[`get_latitude()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/spidf_accessors.md),
-[`ltm_copy_metadata()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_copy_metadata.md)
+[`get_latitude()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/spidf_accessors.md),
+[`ltm_copy_metadata()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_copy_metadata.md)

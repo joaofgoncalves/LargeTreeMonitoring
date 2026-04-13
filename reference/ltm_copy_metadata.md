@@ -30,5 +30,5 @@ Object `x` with copied attributes.
 ## See also
 
 Other metadata helpers:
-[`get_latitude()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/spidf_accessors.md),
-[`set_latitude()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/spidf_setters.md)
+[`get_latitude()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/spidf_accessors.md),
+[`set_latitude()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/spidf_setters.md)

@@ -201,7 +201,7 @@ object.
 ## See also
 
 Other break-detection wrappers:
-[`ltm_cpm_detect_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cpm_detect_breaks.md),
-[`ltm_mcp_detect_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_mcp_detect_breaks.md),
-[`ltm_strucchange_detect_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_strucchange_detect_breaks.md),
-[`ltm_wbs_detect_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_wbs_detect_breaks.md)
+[`ltm_cpm_detect_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cpm_detect_breaks.md),
+[`ltm_mcp_detect_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_mcp_detect_breaks.md),
+[`ltm_strucchange_detect_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_strucchange_detect_breaks.md),
+[`ltm_wbs_detect_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_wbs_detect_breaks.md)

@@ -44,5 +44,5 @@ An object of class `spidf` with one row per day, columns `ti`, `spi`,
 ## See also
 
 Other preprocessing helpers:
-[`ltm_apply_moving_quantile()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_apply_moving_quantile.md),
-[`ltm_apply_whitaker()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_apply_whitaker.md)
+[`ltm_apply_moving_quantile()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_apply_moving_quantile.md),
+[`ltm_apply_whitaker()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_apply_whitaker.md)

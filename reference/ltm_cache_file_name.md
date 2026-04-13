@@ -57,12 +57,12 @@ ltm_cache_file_name(
 ## Value
 
 Character scalar path ending in `.rds` under
-[`ltm_cache_dir()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cache_dir.md).
+[`ltm_cache_dir()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cache_dir.md).
 
 ## See also
 
 Other cache and configuration helpers:
-[`ltm_cache_dir()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cache_dir.md),
-[`ltm_check_cache()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_check_cache.md),
-[`ltm_config_dir()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_config_dir.md),
-[`ltm_save_to_cache()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_save_to_cache.md)
+[`ltm_cache_dir()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cache_dir.md),
+[`ltm_check_cache()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_check_cache.md),
+[`ltm_config_dir()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_config_dir.md),
+[`ltm_save_to_cache()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_save_to_cache.md)

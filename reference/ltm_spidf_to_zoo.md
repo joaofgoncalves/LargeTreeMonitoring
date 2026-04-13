@@ -27,6 +27,6 @@ A `zoo` object indexed by `spidf_obj$ti`.
 ## See also
 
 Other time-series conversion helpers:
-[`ltm_copy_ts()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_copy_ts.md),
-[`ltm_days_between()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_days_between.md),
-[`ltm_spidf_to_ts()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_ts.md)
+[`ltm_copy_ts()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_copy_ts.md),
+[`ltm_days_between()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_days_between.md),
+[`ltm_spidf_to_ts()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_ts.md)

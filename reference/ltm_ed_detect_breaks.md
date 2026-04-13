@@ -201,5 +201,5 @@ The long-term validator compares aggregated values before and after the
 selected break. The short-term validator compares local pre- and
 post-break windows when `st_window` is provided. The randomized trend
 validator calls
-[`ltm_trend_validator_randomized()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_trend_validator_randomized.md)
+[`ltm_trend_validator_randomized()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_trend_validator_randomized.md)
 when `trend_window` is provided.

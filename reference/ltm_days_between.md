@@ -26,6 +26,6 @@ Integer scalar number of days between `start_date` and `end_date`.
 ## See also
 
 Other time-series conversion helpers:
-[`ltm_copy_ts()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_copy_ts.md),
-[`ltm_spidf_to_ts()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_ts.md),
-[`ltm_spidf_to_zoo()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_zoo.md)
+[`ltm_copy_ts()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_copy_ts.md),
+[`ltm_spidf_to_ts()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_ts.md),
+[`ltm_spidf_to_zoo()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_zoo.md)

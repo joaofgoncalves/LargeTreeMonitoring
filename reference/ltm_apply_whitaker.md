@@ -24,7 +24,7 @@ ltm_apply_whitaker(
 - spidf_obj:
 
   A regularized object of class `spidf`, typically returned by
-  [`ltm_regularize_spidf()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_regularize_spidf.md).
+  [`ltm_regularize_spidf()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_regularize_spidf.md).
 
 - lambda:
 
@@ -56,5 +56,5 @@ attributes.
 ## See also
 
 Other preprocessing helpers:
-[`ltm_apply_moving_quantile()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_apply_moving_quantile.md),
-[`ltm_regularize_spidf()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_regularize_spidf.md)
+[`ltm_apply_moving_quantile()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_apply_moving_quantile.md),
+[`ltm_regularize_spidf()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_regularize_spidf.md)

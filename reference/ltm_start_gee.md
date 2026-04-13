@@ -34,4 +34,4 @@ when initialization raises an error. As a side effect, sets option
 ## See also
 
 Other Google Earth Engine helpers:
-[`ltm_check_gee_status()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_check_gee_status.md)
+[`ltm_check_gee_status()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_check_gee_status.md)

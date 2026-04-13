@@ -32,7 +32,7 @@ ltm_plot_spidf_ts(
 - df_breaks:
 
   Optional data frame of break-detection results, typically produced by
-  [`as.data.frame.ts_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/as.data.frame.ts_breaks.md).
+  [`as.data.frame.ts_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/as.data.frame.ts_breaks.md).
 
 - only_valid_breaks:
 
@@ -59,4 +59,4 @@ A `ggplot` object.
 ## See also
 
 Other plotting helpers:
-[`plot_valid_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/plot_valid_breaks.md)
+[`plot_valid_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/plot_valid_breaks.md)

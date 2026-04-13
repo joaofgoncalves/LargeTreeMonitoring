@@ -29,7 +29,7 @@ Invisibly returns the character scalar path to the written cache file.
 ## See also
 
 Other cache and configuration helpers:
-[`ltm_cache_dir()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cache_dir.md),
-[`ltm_cache_file_name()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cache_file_name.md),
-[`ltm_check_cache()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_check_cache.md),
-[`ltm_config_dir()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_config_dir.md)
+[`ltm_cache_dir()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cache_dir.md),
+[`ltm_cache_file_name()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cache_file_name.md),
+[`ltm_check_cache()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_check_cache.md),
+[`ltm_config_dir()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_config_dir.md)

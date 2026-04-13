@@ -28,9 +28,9 @@ The updated `ts_breaks` object.
 ## See also
 
 Other break result helpers:
-[`as.data.frame.ts_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/as.data.frame.ts_breaks.md),
-[`ltm_get_algorithms()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_get_algorithms.md),
-[`ltm_get_run_details()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_get_run_details.md),
-[`ltm_get_runs()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_get_runs.md),
-[`ltm_summarize_break_df()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_summarize_break_df.md),
-[`ltm_ts_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_ts_breaks.md)
+[`as.data.frame.ts_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/as.data.frame.ts_breaks.md),
+[`ltm_get_algorithms()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_get_algorithms.md),
+[`ltm_get_run_details()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_get_run_details.md),
+[`ltm_get_runs()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_get_runs.md),
+[`ltm_summarize_break_df()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_summarize_break_df.md),
+[`ltm_ts_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_ts_breaks.md)

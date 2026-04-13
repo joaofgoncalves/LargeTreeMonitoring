@@ -17,5 +17,5 @@ A character vector.
 ## See also
 
 Other package constants:
-[`PROC_LEVELS_LIST`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/PROC_LEVELS_LIST.md),
-[`SPECTRAL_INDICES_LIST`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/SPECTRAL_INDICES_LIST.md)
+[`PROC_LEVELS_LIST`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/PROC_LEVELS_LIST.md),
+[`SPECTRAL_INDICES_LIST`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/SPECTRAL_INDICES_LIST.md)

@@ -25,4 +25,4 @@ A patchwork object combining two `ggplot` plots.
 ## See also
 
 Other plotting helpers:
-[`ltm_plot_spidf_ts()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_plot_spidf_ts.md)
+[`ltm_plot_spidf_ts()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_plot_spidf_ts.md)

@@ -29,6 +29,6 @@ A `ts` object containing `values` and the time attributes of
 ## See also
 
 Other time-series conversion helpers:
-[`ltm_days_between()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_days_between.md),
-[`ltm_spidf_to_ts()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_ts.md),
-[`ltm_spidf_to_zoo()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_zoo.md)
+[`ltm_days_between()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_days_between.md),
+[`ltm_spidf_to_ts()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_ts.md),
+[`ltm_spidf_to_zoo()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_spidf_to_zoo.md)

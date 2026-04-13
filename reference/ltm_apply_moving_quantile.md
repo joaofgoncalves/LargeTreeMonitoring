@@ -16,7 +16,7 @@ ltm_apply_moving_quantile(spidf_obj, quant = 0.95, win_size = 9)
 - spidf_obj:
 
   A regularized object of class `spidf`, typically returned by
-  [`ltm_regularize_spidf()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_regularize_spidf.md).
+  [`ltm_regularize_spidf()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_regularize_spidf.md).
 
 - quant:
 
@@ -38,5 +38,5 @@ updated attributes `mov_window`, `mov_window_quantile`, and
 ## See also
 
 Other preprocessing helpers:
-[`ltm_apply_whitaker()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_apply_whitaker.md),
-[`ltm_regularize_spidf()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_regularize_spidf.md)
+[`ltm_apply_whitaker()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_apply_whitaker.md),
+[`ltm_regularize_spidf()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_regularize_spidf.md)

@@ -168,7 +168,7 @@ after resolving deprecated LargeTreeMonitoring aliases `tresh_int` and
 ## See also
 
 Other break-detection wrappers:
-[`ltm_bfast01_detect_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_bfast01_detect_breaks.md),
-[`ltm_cpm_detect_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cpm_detect_breaks.md),
-[`ltm_mcp_detect_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_mcp_detect_breaks.md),
-[`ltm_wbs_detect_breaks()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_wbs_detect_breaks.md)
+[`ltm_bfast01_detect_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_bfast01_detect_breaks.md),
+[`ltm_cpm_detect_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_cpm_detect_breaks.md),
+[`ltm_mcp_detect_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_mcp_detect_breaks.md),
+[`ltm_wbs_detect_breaks()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_wbs_detect_breaks.md)

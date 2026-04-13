@@ -2,7 +2,7 @@
 
 These S3 generics and methods read metadata attributes stored on `spidf`
 objects returned by
-[`ltm_s2_get_data_point()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_s2_get_data_point.md)
+[`ltm_s2_get_data_point()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_s2_get_data_point.md)
 and preprocessing helpers. Accessors are grouped by metadata type:
 `get_latitude()`, `get_longitude()`, `get_start_date()`,
 `get_end_date()`, `get_range_start()`, `get_range_end()`,
@@ -143,5 +143,5 @@ character metadata value.
 ## See also
 
 Other metadata helpers:
-[`ltm_copy_metadata()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_copy_metadata.md),
-[`set_latitude()`](http://joaogoncalves.cc/LargeTreeMonitoring/reference/spidf_setters.md)
+[`ltm_copy_metadata()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/ltm_copy_metadata.md),
+[`set_latitude()`](https://joaogoncalves.cc/LargeTreeMonitoring/reference/spidf_setters.md)
