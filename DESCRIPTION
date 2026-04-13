@@ -4,7 +4,7 @@ Title: Monitor Large Trees using Sentinel-2 Time Series and Break Point Detectio
 Version: 0.1.0
 Authors@R: c(
     person(
-      "Joao", "Goncalves",
+      "João", "Gonçalves",
       email = "joao.goncalves@cibio.up.pt",
       role = c("aut", "cre")
     )
@@ -50,3 +50,4 @@ Suggests:
 Config/testthat/edition: 3
 RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE, load = "installed")
+URL: http://joaogoncalves.cc/LargeTreeMonitoring/

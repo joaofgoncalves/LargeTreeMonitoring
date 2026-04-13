@@ -13,3 +13,4 @@ ltm_cache/
 tests/testthat/ltm_cache/
 tests/testthat/_problems/
 tests/testthat/testthat-problems.rds
+docs

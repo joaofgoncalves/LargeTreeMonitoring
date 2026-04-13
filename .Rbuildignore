@@ -13,3 +13,7 @@
 ^tests/testthat/_problems$
 ^tests/testthat/testthat-problems\.rds$
 ^www$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.github$
