@@ -1,4 +1,4 @@
-url: http://joaogoncalves.cc/LargeTreeMonitoring/
+url: https://joaogoncalves.cc/LargeTreeMonitoring/
 template:
   bootstrap: 5
-
+  math-rendering: mathjax

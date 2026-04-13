@@ -6,7 +6,14 @@ Authors@R: c(
     person(
       "João", "Gonçalves",
       email = "joao.goncalves@cibio.up.pt",
-      role = c("aut", "cre")
+      role = c("aut", "cre"),
+      comment = c(ORCID = "0000-0002-6615-0218")
+    ),
+    person(
+      "João", "Soutinho",
+      email = "soutinhojg@gmail.com",
+      role = c("ctb", "dtc", "rev"),
+      comment = c(ORCID = "0000-0002-1036-2625")
     )
   )
 Description: An R package to monitor large trees using Sentinel-2 image time 
@@ -50,4 +57,4 @@ Suggests:
 Config/testthat/edition: 3
 RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE, load = "installed")
-URL: http://joaogoncalves.cc/LargeTreeMonitoring/
+URL: https://joaogoncalves.cc/LargeTreeMonitoring/

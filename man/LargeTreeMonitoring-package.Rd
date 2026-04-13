@@ -120,7 +120,12 @@ series, running breakpoint detection, and downloading tabular results.
 \code{\link{ltm_app}()}
 }
 \author{
-\strong{Maintainer}: Joao Goncalves \email{joao.goncalves@cibio.up.pt}
+\strong{Maintainer}: João Gonçalves \email{joao.goncalves@cibio.up.pt} (\href{https://orcid.org/0000-0002-6615-0218}{ORCID})
+
+Other contributors:
+\itemize{
+  \item João Soutinho \email{soutinhojg@gmail.com} (\href{https://orcid.org/0000-0002-1036-2625}{ORCID}) [contributor, data contributor, reviewer]
+}
 
 }
 \keyword{internal}
